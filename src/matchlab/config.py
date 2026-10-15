@@ -53,7 +53,7 @@ class AnalysisSettings:
     # Partite per la "forma recente".
     form_window: int = 5
     # Minuti minimi per includere un giocatore nelle statistiche per 90'.
-    player_min_minutes: int = 270
+    player_min_minutes: int = 360
     # Quanti giocatori mostrare per squadra.
     players_per_team: int = 8
     extra: dict = field(default_factory=dict)

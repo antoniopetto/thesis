@@ -198,12 +198,6 @@ def build(
     coaches = manual.load_coaches(manual_dir)
     coaches = {canonical(t, known): c for t, c in coaches.items()}
 
-    if "referee" not in matches.columns or matches["referee"].isna().all():
-        warnings.append(
-            "Nessun dato arbitri: per questo campionato football-data non li fornisce. "
-            "Aggiungi data/manual/referees.csv per attivare l'agente Arbitro."
-        )
-
     return LeagueData(
         league=league,
         season=season,

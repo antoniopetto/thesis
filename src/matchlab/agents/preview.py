@@ -42,7 +42,8 @@ class PreviewAgent(Agent):
         out = AgentOutput(self.name, self.role)
         fx = ctx.data.fixtures
         if fx is None or fx.empty:
-            out.notes.append("Nessuna partita in calendario trovata (fixtures.csv).")
+            out.notes.append("Nessuna partita della prossima giornata ancora pubblicata su football-data (fixtures.csv): "
+                           "di solito compare 2-3 giorni prima; in alternativa usa --fixtures-csv.")
             return out
         tm = ctx.data.team_matches
         teams = set(ctx.data.teams)

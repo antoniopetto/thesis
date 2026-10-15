@@ -20,10 +20,10 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
-def _html_table(df: pd.DataFrame | None) -> str:
+def _html_table(df: pd.DataFrame | None, classes: str = "tbl") -> str:
     if df is None or df.empty:
         return ""
-    return df.to_html(index=False, border=0, classes="tbl", na_rep="–", escape=True)
+    return df.to_html(index=False, border=0, classes=classes, na_rep="–", escape=True)
 
 
 def _team_view(result: AnalysisResult, team: str) -> dict:
@@ -98,7 +98,7 @@ def build_context(result: AnalysisResult) -> dict:
         "sources": data.sources,
         "warnings": data.warnings + [n for out in o.values() for n in out.notes],
         "agents": [(out.agent, out.role, len(out.insights)) for out in o.values()],
-        "standings": _html_table(o["Risultati & forma"].tables.get("classifica")) if "Risultati & forma" in o else "",
+        "standings": _html_table(o["Risultati & forma"].tables.get("classifica"), "tbl lead2") if "Risultati & forma" in o else "",
         "referees": _html_table(ref.tables.get("referees")) if ref else "",
         "league_insights": [i for i in result.insights if i.team is None],
         "teams": [_team_view(result, t) for t in data.teams],
