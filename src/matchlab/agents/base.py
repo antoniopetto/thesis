@@ -54,6 +54,7 @@ class Context:
     data: LeagueData
     settings: AnalysisSettings
     profiles: pd.DataFrame  # output di stats.metrics.profile_table
+    prev_profiles: pd.DataFrame | None = None  # stessa tabella per la stagione precedente
 
     @property
     def league_name(self) -> str:
@@ -101,7 +102,8 @@ class Agent(ABC):
                 text = (
                     f"{m.label}{where}: {m.format(row.value)} — {level} "
                     f"(media lega {m.format(row.league)}, {display_rank(m, row.rank, row.n_teams)}; "
-                    f"ultime {s.form_window}: {m.format(row.last_n)})"
+                    f"ultime {s.form_window}: {m.format(row.last_n)}"
+                    + (f"; stag. scorsa: {m.format(row.prev)})" if not math.isnan(row.prev) else ")")
                 )
                 out.append(
                     Insight(
@@ -128,5 +130,7 @@ class Agent(ABC):
                 r["Media lega"] = m.format(tot.iloc[0].league)
                 r["Posizione"] = display_rank(m, tot.iloc[0]["rank"], tot.iloc[0]["n_teams"])
                 r[f"Ultime {ctx.settings.form_window}"] = m.format(tot.iloc[0].last_n)
+                if ctx.prev_profiles is not None:
+                    r["Stag. scorsa"] = m.format(tot.iloc[0].prev)
             rows.append(r)
         return pd.DataFrame(rows)

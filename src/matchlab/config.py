@@ -43,6 +43,8 @@ class AnalysisSettings:
     # Partite "virtuali" di media campionato aggiunte a ogni squadra (shrinkage):
     # riduce il rumore quando il campione è piccolo.
     shrinkage_matches: float = 4.0
+    # Quanto dello scarto dalla media della stagione scorsa si "eredita" come punto di partenza.
+    prior_weight: float = 0.6
     # z-score (rispetto alle altre squadre) oltre il quale un dato è "forza/debolezza".
     z_threshold: float = 1.0
     # Minimo partite per segnalare una tendenza.

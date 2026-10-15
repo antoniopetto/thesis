@@ -72,3 +72,18 @@ def test_distributions():
     mat = dist.score_matrix(1.5, 1.1)
     assert abs(mat.sum() - 1) < 1e-9
     assert 0 < dist.over_prob(dist.poisson_pmf(2.6), 2.5) < 1
+
+
+def test_prior_from_previous_season(data):
+    from matchlab.stats.metrics import lookup, profile_table
+
+    tm = data.team_matches
+    prior = profile_table(tm).copy()
+    # Stagione scorsa fittizia: "Iota" segnava 1 gol in più della media.
+    mask = (prior.team == "Iota") & (prior.metric == "goals_for")
+    prior.loc[mask, "value"] = prior.loc[mask, "league"] + 1.0
+    base = lookup(profile_table(tm), "Iota", "goals_for")
+    with_prior = lookup(profile_table(tm, prior=prior, prior_weight=0.5), "Iota", "goals_for")
+    assert with_prior.shrunk > base.shrunk
+    assert with_prior.value == base.value  # il dato grezzo della stagione non cambia
+    assert with_prior.prev == pytest.approx(base.league + 1.0, rel=0.2)

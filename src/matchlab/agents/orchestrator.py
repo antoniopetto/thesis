@@ -60,8 +60,14 @@ class Orchestrator:
         self.settings = settings or AnalysisSettings()
 
     def run(self, data: LeagueData) -> AnalysisResult:
-        profiles = profile_table(data.team_matches, self.settings.shrinkage_matches, self.settings.form_window)
-        ctx = Context(data=data, settings=self.settings, profiles=profiles)
+        st = self.settings
+        prev_profiles = None
+        if data.previous is not None:
+            prev_profiles = profile_table(data.previous.team_matches, st.shrinkage_matches, st.form_window)
+        profiles = profile_table(
+            data.team_matches, st.shrinkage_matches, st.form_window, prior=prev_profiles, prior_weight=st.prior_weight
+        )
+        ctx = Context(data=data, settings=st, profiles=profiles, prev_profiles=prev_profiles)
         # Gli agenti leggono solo il contesto condiviso: possono girare in parallelo.
         with ThreadPoolExecutor(max_workers=len(self.agents)) as pool:
             results = list(pool.map(lambda a: self._safe_run(a, ctx), self.agents))

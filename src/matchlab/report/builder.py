@@ -122,7 +122,8 @@ def render_markdown(result: AnalysisResult) -> str:
         lines += ["", f"## {t['name']}", ""]
         if t["form"]:
             lines.append(f"Forma: **{t['form'].get('forma', '')}** · Casa {t['form'].get('Casa', '')} · "
-                         f"Trasferta {t['form'].get('Trasferta', '')}")
+                         f"Trasferta {t['form'].get('Trasferta', '')}"
+                         + (f" · Stagione scorsa: {t['form']['stagione_scorsa']}" if t['form'].get('stagione_scorsa') else ""))
         style = t["style"]
         if style:
             coach = f"{style.get('allenatore')} — " if style.get("allenatore") else ""

@@ -86,7 +86,8 @@ a { color: var(--accent); }
       <h2>Agenti</h2>
       <ul>{% for name, role, n in agents %}<li><strong>{{ name }}</strong> — {{ role }} <span class="muted">({{ n }} segnalazioni)</span></li>{% endfor %}</ul>
       <p class="muted">Una metrica è "forza" o "debolezza" quando la squadra si discosta di almeno 1 deviazione standard dalle altre,
-      usando medie con <em>shrinkage</em> (con poche partite il valore viene avvicinato alla media del campionato). Tra parentesi: media lega, posizione nel campionato, valore nelle ultime partite.</p>
+      usando medie con <em>shrinkage</em>: con poche partite il valore viene avvicinato a un punto di partenza
+      che combina media del campionato e rendimento della squadra nella stagione scorsa (per le neopromosse solo la media). Tra parentesi: media lega, posizione nel campionato, valore nelle ultime partite.</p>
     </div>
   </section>
 
@@ -124,6 +125,7 @@ a { color: var(--accent); }
         {% if t.standing %}<span>{{ t.standing.Pos }}° · {{ t.standing.Pt }} punti in {{ t.standing.G }} partite · GF {{ t.standing.GF }} GS {{ t.standing.GS }}</span>{% endif %}
         {% if t.form.forma %}<span>Forma: <span class="form">{{ t.form.forma }}</span></span>{% endif %}
         {% if t.form.Casa %}<span>Casa: {{ t.form.Casa }}</span><span>Trasferta: {{ t.form.Trasferta }}</span>{% endif %}
+        {% if t.form.stagione_scorsa %}<span class="muted">Stagione scorsa: {{ t.form.stagione_scorsa }}</span>{% endif %}
       </div>
       {% if t.style %}
       <div class="meta" style="margin-top:8px">

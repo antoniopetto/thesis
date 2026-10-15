@@ -43,6 +43,7 @@ class LeagueData:
     coaches: dict[str, str] = field(default_factory=dict)
     sources: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    previous: "LeagueData | None" = None  # stagione precedente (stesso campionato), se disponibile
 
     @property
     def teams(self) -> list[str]:
@@ -155,6 +156,9 @@ def build(
     matches_csv: Path | None = None,
     fixtures_csv: Path | None = None,
     use_understat: bool = True,
+    with_previous: bool = True,
+    prev_matches_csv: Path | None = None,
+    _is_previous: bool = False,
 ) -> LeagueData:
     cache = HttpCache(cache_dir, offline=offline)
     warnings: list[str] = []
@@ -177,12 +181,14 @@ def build(
             sources.append("understat.com")
         except FetchError as exc:
             warnings.append(f"Understat non disponibile ({exc}): niente xG/PPDA/giocatori.")
-    extras = manual.load_player_stats(manual_dir)
+    extras = None if _is_previous else manual.load_player_stats(manual_dir)
     if extras is not None:
         sources.append("data/manual/player_stats.csv")
     players = merge_player_extras(players, extras, known)
 
     fixtures = pd.DataFrame()
+    if _is_previous:
+        return LeagueData(league, season, matches, tm, players, sources=sources, warnings=warnings)
     try:
         fixtures = football_data.load_fixtures(league, cache, csv_path=fixtures_csv)
         last_played = matches["date"].max()
@@ -198,7 +204,20 @@ def build(
     coaches = manual.load_coaches(manual_dir)
     coaches = {canonical(t, known): c for t, c in coaches.items()}
 
+    previous = None
+    if with_previous:
+        try:
+            previous = build(
+                league, season - 1, cache_dir=cache_dir, manual_dir=manual_dir, offline=offline,
+                matches_csv=prev_matches_csv, use_understat=use_understat, _is_previous=True,
+            )
+            if previous.matches.empty:
+                previous = None
+        except (FetchError, ValueError, KeyError) as exc:
+            warnings.append(f"Stagione precedente non disponibile ({exc}): niente confronto né prior.")
+
     return LeagueData(
+        previous=previous,
         league=league,
         season=season,
         matches=matches,

@@ -34,6 +34,7 @@ class ResultsAgent(Agent):
         table.insert(0, "Pos", np.arange(1, len(table) + 1))
         out.tables["classifica"] = table.rename(columns={"team": "Squadra"})
 
+        prev = self._previous_table(ctx)
         per_team = {}
         for team, g in tm.sort_values("date").groupby("team"):
             last = g.tail(s.form_window)
@@ -43,6 +44,22 @@ class ResultsAgent(Agent):
                 gv = g[g.venue == venue]
                 rec[label] = f"{(gv.result == 'W').sum()}V {(gv.result == 'D').sum()}N {(gv.result == 'L').sum()}P"
             per_team[team] = {"forma": form, **rec}
+            if prev is not None:
+                if team in prev.index:
+                    pr = prev.loc[team]
+                    per_team[team]["stagione_scorsa"] = (
+                        f"{int(pr.Pos)}° con {int(pr.Pt)} punti ({pr.Pt / pr.G:.2f}/partita)"
+                    )
+                    if len(g) >= s.min_matches and abs(g["points"].mean() - pr.Pt / pr.G) >= 0.6:
+                        now = g["points"].mean()
+                        trend = "molto meglio" if now > pr.Pt / pr.G else "molto peggio"
+                        out.insights.append(Insight(
+                            self.name, "risultati", "tendenza", team=team, score=abs(now - pr.Pt / pr.G) * 2,
+                            text=f"Sta facendo {trend} della stagione scorsa: {now:.2f} punti/partita "
+                                 f"contro {pr.Pt / pr.G:.2f} (chiuse {int(pr.Pos)}°).",
+                        ))
+                else:
+                    per_team[team]["stagione_scorsa"] = f"neopromossa (non era in {ctx.league_name})"
 
             ppg_all = g["points"].mean()
             ppg_last = last["points"].mean()
@@ -68,6 +85,20 @@ class ResultsAgent(Agent):
         out.tables["per_team"] = per_team
         out.insights += self.metric_insights(ctx, {"risultati"})
         return out
+
+
+    @staticmethod
+    def _previous_table(ctx: Context) -> pd.DataFrame | None:
+        prev = ctx.data.previous
+        if prev is None:
+            return None
+        tm = prev.team_matches
+        t = tm.groupby("team").agg(G=("points", "size"), Pt=("points", "sum"),
+                                   DR=("goals_for", "sum"), GS=("goals_against", "sum"))
+        t["DR"] = t["DR"] - t["GS"]
+        t = t.sort_values(["Pt", "DR"], ascending=False)
+        t["Pos"] = np.arange(1, len(t) + 1)
+        return t
 
 
 class AttackDefenseAgent(Agent):

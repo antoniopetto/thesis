@@ -95,16 +95,31 @@ def _value(df: pd.DataFrame, m: Metric) -> tuple[float, float, float, int]:
     return (num / den if den else np.nan), num, den, len(sub)
 
 
-def profile_table(tm: pd.DataFrame, shrinkage: float = 4.0, form_window: int = 5) -> pd.DataFrame:
-    """Tabella lunga: team, venue, metric, n, value, shrunk, league, z, rank, last_n.
+def profile_table(
+    tm: pd.DataFrame,
+    shrinkage: float = 4.0,
+    form_window: int = 5,
+    prior: pd.DataFrame | None = None,
+    prior_weight: float = 0.6,
+) -> pd.DataFrame:
+    """Tabella lunga: team, venue, metric, n, value, shrunk, league, prev, z, rank, last_n.
 
-    - value: media grezza; shrunk: media "prudente" che tira verso la media di lega
-      quando le partite sono poche (stima migliore per previsioni).
+    - value: media grezza della stagione.
+    - shrunk: media "prudente" che, quando le partite sono poche, tira verso un punto di
+      partenza: la media di lega, spostata verso il valore della stagione scorsa della
+      squadra se disponibile (`prior`, di solito l'output di profile_table sulla stagione
+      precedente). `prior_weight` < 1 perché tra una stagione e l'altra cambiano rose e
+      allenatori: si eredita solo una parte dello scarto dalla media.
+    - prev: valore della stagione scorsa (NaN per le neopromosse).
     - z: quante deviazioni standard la squadra è lontana dalle altre (sul valore shrunk).
     - rank: 1 = valore più alto del campionato.
     """
     tm = add_derived(tm)
     metrics = available_metrics(tm)
+    prior_map: dict[tuple[str, str, str], tuple[float, float]] = {}
+    if prior is not None and not prior.empty:
+        for r in prior.itertuples():
+            prior_map[(r.team, r.venue, r.metric)] = (r.value, r.league)
     rows = []
     for venue in VENUES:
         sub = tm if venue == "all" else tm[tm["venue"] == venue]
@@ -113,14 +128,19 @@ def profile_table(tm: pd.DataFrame, shrinkage: float = 4.0, form_window: int = 5
             avg_den_per_match = lg_den / lg_n if lg_n else 0
             for team, g in sub.groupby("team"):
                 val, num, den, n = _value(g, m)
+                prev, prev_lg = prior_map.get((team, venue, m.key), (np.nan, np.nan))
+                center = lg_val
+                if not (np.isnan(prev) or np.isnan(prev_lg)):
+                    center = lg_val + prior_weight * (prev - prev_lg)
                 if m.column:
-                    shrunk = (num + shrinkage * lg_val) / (n + shrinkage) if n + shrinkage else np.nan
+                    shrunk = (num + shrinkage * center) / (n + shrinkage) if n + shrinkage else np.nan
                 else:
                     pseudo_den = shrinkage * avg_den_per_match
-                    shrunk = (num + lg_val * pseudo_den) / (den + pseudo_den) if den + pseudo_den else np.nan
+                    shrunk = (num + center * pseudo_den) / (den + pseudo_den) if den + pseudo_den else np.nan
                 last = _value(g.sort_values("date").tail(form_window), m)[0]
                 rows.append(
-                    dict(team=team, venue=venue, metric=m.key, n=n, value=val, shrunk=shrunk, league=lg_val, last_n=last)
+                    dict(team=team, venue=venue, metric=m.key, n=n, value=val, shrunk=shrunk, league=lg_val,
+                         prev=prev, last_n=last)
                 )
     out = pd.DataFrame(rows)
     if out.empty:
