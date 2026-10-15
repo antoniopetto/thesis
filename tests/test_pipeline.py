@@ -99,3 +99,46 @@ def test_book_row_margin_removed():
     inv = 1 / 2.0 + 1 / 3.4 + 1 / 3.6
     assert r["book_p"] == pytest.approx((1 / 2.0) / inv)
     assert r["flag"] == (0.55 - r["book_p"] >= 0.05)
+
+
+def test_backtest_walk_forward(data):
+    from matchlab.stats import backtest
+    from matchlab.stats.model import ModelParams
+
+    df = backtest.walk_forward(data, ModelParams())
+    assert len(df) > 0
+    assert ((df.p1 + df.px + df.p2 - 1).abs() < 1e-9).all()
+    # Nessuna sbirciatina al futuro: si prevede solo dopo MIN_GAMES partite per squadra.
+    assert df["date"].min() > data.matches["date"].min()
+    res = backtest.evaluate(df)
+    assert res["partite"] == len(df)
+    assert "mercato_chiusura" not in res["1x2"]  # il CSV sintetico non ha quote di chiusura
+    assert "1X2" in res["scommesse_simulate"] or res["scommesse_simulate"] == {}
+
+
+def test_match_players():
+    from matchlab.data.names import match_players
+
+    left = ["Bremer", "Kouadio Kone", "Lautaro Martínez", "Francesco Pio Esposito", "Sebastiano Esposito"]
+    right = ["Gleison Bremer", "Manu Koné", "Lautaro Martinez", "Pio Esposito", "Sebastiano Esposito"]
+    m = match_players(left, right, left_minutes={"Francesco Pio Esposito": 361},
+                      right_minutes={"Pio Esposito": 360, "Sebastiano Esposito": 90})
+    assert m["Bremer"] == "Gleison Bremer"
+    assert m["Lautaro Martínez"] == "Lautaro Martinez"
+    assert m["Sebastiano Esposito"] == "Sebastiano Esposito"
+    assert m["Francesco Pio Esposito"] == "Pio Esposito"
+
+
+def test_team_absences():
+    import pandas as pd
+
+    from matchlab.agents.absences import MAX_REDUCTION, team_absences
+
+    players = pd.DataFrame({
+        "player": ["Bomber", "Regista", "Riserva"], "team": "Alfa", "minutes": [900, 900, 100],
+        "xg": [6.0, 1.0, 0.0], "npxg": [5.0, 1.0, 0.0], "xa": [1.0, 2.0, 1.0],
+    })
+    rows, mult = team_absences(players, "Alfa", [{"player": "Bomber", "doubtful": False, "reason": "infortunio"}])
+    assert rows[0]["share"] == pytest.approx(6 / 10)
+    assert mult == pytest.approx(1 - 0.6 * 0.5) or mult == pytest.approx(1 - MAX_REDUCTION)
+    assert team_absences(players, "Alfa", [])[1] == 1.0

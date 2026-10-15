@@ -40,7 +40,16 @@ def main(argv: list[str] | None = None) -> int:
     rp.add_argument("--min-matches", type=int, default=AnalysisSettings.min_matches)
     rp.add_argument("--z", type=float, default=AnalysisSettings.z_threshold, help="Soglia z-score per forza/debolezza")
     rp.add_argument("-v", "--verbose", action="store_true")
+
+    bp = sub.add_parser("backtest", help="Tara il modello su una stagione passata e lo verifica sulla successiva")
+    bp.add_argument("--league", default="serie_a", choices=sorted(LEAGUES))
+    bp.add_argument("--train", type=int, default=_current_season() - 2, help="Stagione di taratura (anno di inizio)")
+    bp.add_argument("--test", type=int, default=_current_season() - 1, help="Stagione di verifica (anno di inizio)")
+    bp.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
+    bp.add_argument("--offline", action="store_true")
     args = ap.parse_args(argv)
+    if args.cmd == "backtest":
+        return _backtest(args)
 
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING, format="%(levelname)s %(message)s")
     league = LEAGUES[args.league]
@@ -63,6 +72,19 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{league.name} {args.season}: {len(data.matches)} partite, {len(result.insights)} segnalazioni.")
     for kind, p in paths.items():
         print(f"  {kind:14s} {p}")
+    return 0
+
+
+def _backtest(args) -> int:
+    from .stats import backtest
+
+    league = LEAGUES[args.league]
+    load = lambda season: dataset.build(  # noqa: E731
+        league, season, cache_dir=args.cache_dir, offline=args.offline, manual_dir=Path("/nonexistent"),
+    )
+    report = backtest.run(load(args.train), load(args.test))
+    print(backtest.summary(report))
+    print(f"Parametri salvati in {backtest.PARAMS_PATH}")
     return 0
 
 

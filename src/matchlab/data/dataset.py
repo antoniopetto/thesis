@@ -15,7 +15,7 @@ import pandas as pd
 from ..config import DEFAULT_CACHE_DIR, DEFAULT_MANUAL_DIR, League
 from . import football_data, manual, sofascore, understat
 from .cache import FetchError, HttpCache
-from .names import canonical
+from .names import canonical, match_players
 
 log = logging.getLogger(__name__)
 
@@ -139,6 +139,34 @@ def merge_referees(matches: pd.DataFrame, refs: pd.DataFrame | None, by_date: bo
     return out.drop(columns=["_d", "_ref"])
 
 
+def merge_sofascore_players(players: pd.DataFrame, sofa: pd.DataFrame, known_teams: list[str]) -> pd.DataFrame:
+    """Aggiunge le statistiche SofaScore ai giocatori Understat (abbinando i nomi squadra per squadra).
+
+    I giocatori presenti solo su SofaScore vengono aggiunti con i minuti SofaScore.
+    """
+    if sofa.empty:
+        return players
+    sofa = sofa.copy()
+    sofa["team"] = sofa["team"].map(lambda n: canonical(n, known_teams))
+    if players.empty:
+        return sofa.rename(columns={"minutes_sofa": "minutes"})
+    extra_cols = [c for c in sofa.columns if c not in ("player", "team")]
+    parts = []
+    for team, g in players.groupby("team"):
+        s = sofa[sofa["team"] == team]
+        mapping = match_players(
+            g["player"].tolist(), s["player"].tolist(),
+            left_minutes=dict(zip(g["player"], g["minutes"])), right_minutes=dict(zip(s["player"], s["minutes_sofa"])),
+        )
+        g = g.assign(_sofa=g["player"].map(mapping))
+        merged = g.merge(s[["player"] + extra_cols].rename(columns={"player": "_sofa"}), on="_sofa", how="left")
+        only_sofa = s[~s["player"].isin(mapping.values())].rename(columns={"minutes_sofa": "minutes"})
+        parts += [merged.drop(columns=["_sofa"]), only_sofa]
+    out = pd.concat(parts, ignore_index=True)
+    out["minutes"] = out["minutes"].fillna(out.get("minutes_sofa"))
+    return out
+
+
 def merge_player_extras(players: pd.DataFrame, extras: pd.DataFrame | None, known_teams: list[str]) -> pd.DataFrame:
     if extras is None:
         return players
@@ -195,6 +223,13 @@ def build(
             sources.append("understat.com")
         except FetchError as exc:
             warnings.append(f"Understat non disponibile ({exc}): niente xG/PPDA/giocatori.")
+    if use_sofascore and not _is_previous:
+        try:
+            sofa_players = sofascore.player_stats(league, season, cache)
+            players = merge_sofascore_players(players, sofa_players, known)
+            sources.append("sofascore.com (giocatori)")
+        except (FetchError, ValueError, KeyError) as exc:
+            warnings.append(f"Statistiche giocatori SofaScore non disponibili ({exc}).")
     extras = None if _is_previous else manual.load_player_stats(manual_dir)
     if extras is not None:
         sources.append("data/manual/player_stats.csv")
@@ -233,6 +268,9 @@ def build(
         fixtures = fixtures.drop(columns=["event_id"], errors="ignore").merge(ids, on=["home", "away"], how="left")
         fixtures["book_odds"] = [
             sofascore.odds(cache, int(e)) if pd.notna(e) else {} for e in fixtures["event_id"]
+        ]
+        fixtures["missing"] = [
+            sofascore.missing_players(cache, int(e)) if pd.notna(e) else {} for e in fixtures["event_id"]
         ]
 
     coaches = manual.load_coaches(manual_dir)

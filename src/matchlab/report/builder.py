@@ -73,6 +73,19 @@ def _previews(result: AnalysisResult) -> list[dict]:
             item["referee"] = c.get("referee")
             item["ref_factor"] = c.get("ref_factor")
         item["flags"] = [r for r in p["rows"] if r["flag"]]
+        ab = p.get("absences") or {}
+        item["absences"] = []
+        for side, team in (("home", p["home"]), ("away", p["away"])):
+            players = ab.get(side) or []
+            if not players:
+                continue
+            mult = ab["mult"][0 if side == "home" else 1]
+            txt = ", ".join(
+                f"{a['player']} ({a['reason']}" + (f", {a['share'] * 100:.0f}% di xG+xA" if a["share"] >= 0.03 else "") + ")"
+                for a in players
+            )
+            item["absences"].append({"team": team, "text": txt,
+                                     "adj": f"gol attesi {(mult - 1) * 100:+.0f}%" if mult < 0.995 else None})
         items.append(item)
     return items
 

@@ -118,3 +118,89 @@ def odds(cache: HttpCache, event_id: int) -> dict:
                 continue
             out.setdefault(kinds[name], {})[line] = choices
     return out
+
+
+# Statistiche giocatore SofaScore -> nomi interni (totali di stagione).
+PLAYER_FIELDS = {
+    "minutesPlayed": "minutes_sofa",
+    "appearances": "appearances",
+    "successfulDribbles": "dribbles_completed",
+    "tackles": "tackles",
+    "interceptions": "interceptions",
+    "fouls": "fouls_committed",
+    "wasFouled": "fouls_won",
+    "shotsOnTarget": "shots_on_target",
+    "accurateCrosses": "crosses",
+    "bigChancesCreated": "big_chances_created",
+    "clearances": "clearances",
+    "saves": "saves",
+    "rating": "rating",
+}
+
+
+def player_stats(league: League, season: int, cache: HttpCache) -> pd.DataFrame:
+    """Statistiche di stagione di tutti i giocatori del campionato."""
+    tournament = TOURNAMENT_IDS.get(league.key)
+    if tournament is None:
+        raise FetchError(f"SofaScore non configurato per {league.name}")
+    sid = season_id(cache, tournament, season)
+    fields = ",".join(PLAYER_FIELDS)
+    rows, offset = [], 0
+    for _ in range(20):
+        d = _get(cache, f"unique-tournament/{tournament}/season/{sid}/statistics?limit=100&offset={offset}"
+                        f"&order=-minutesPlayed&accumulation=total&fields={fields}", max_age_hours=12)
+        for r in d.get("results", []):
+            row = {"player": r["player"]["name"], "team": r["team"]["name"]}
+            row.update({PLAYER_FIELDS[k]: r.get(k) for k in PLAYER_FIELDS})
+            rows.append(row)
+        if d.get("page", 1) >= d.get("pages", 1):
+            break
+        offset += 100
+    df = pd.DataFrame(rows)
+    for c in PLAYER_FIELDS.values():
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+    return df
+
+
+INJURY_IT = {
+    "cruciate ligament": "legamento crociato", "meniscus": "menisco", "hamstring": "bicipite femorale",
+    "muscle": "muscolare", "thigh": "coscia", "groin": "inguine", "knee": "ginocchio", "ankle": "caviglia",
+    "calf": "polpaccio", "back": "schiena", "shoulder": "spalla", "foot": "piede", "hip": "anca",
+    "achilles": "tendine d'Achille", "head": "testa", "concussion": "commozione cerebrale", "finger": "dito",
+    "hand": "mano", "knock": "botta", "physical discomfort": "affaticamento", "illness": "malattia",
+    "gastrointestinal": "problema gastrointestinale", "toe": "dito del piede", "rib": "costola",
+}
+
+
+def _reason(desc: str | None, kind: str | None) -> str:
+    d = (desc or "").lower()
+    if "suspen" in d or "card" in d:
+        label = "squalifica"
+    else:
+        where = next((it for en, it in INJURY_IT.items() if en in d), None)
+        broken = "broken" in d or "fracture" in d
+        if where in ("affaticamento", "malattia", "problema gastrointestinale"):
+            label = where
+        elif where:
+            label = f"{'frattura' if broken else 'infortunio'}: {where}"
+        else:
+            label = desc or "assente"
+    return label + (" — in dubbio" if kind == "doubtful" else "")
+
+
+def missing_players(cache: HttpCache, event_id: int) -> dict[str, list[dict]]:
+    """Indisponibili (infortunati, squalificati, in dubbio) per casa e ospite."""
+    try:
+        d = _get(cache, f"event/{event_id}/lineups", max_age_hours=3)
+    except FetchError:
+        return {}
+    out = {}
+    for side in ("home", "away"):
+        out[side] = [
+            {"player": m["player"]["name"], "doubtful": m.get("type") == "doubtful",
+             "reason": _reason(m.get("description"), m.get("type"))}
+            for m in d.get(side, {}).get("missingPlayers", [])
+        ]
+    out["confirmed"] = bool(d.get("confirmed"))
+    return out

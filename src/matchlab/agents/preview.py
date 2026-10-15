@@ -1,58 +1,38 @@
-"""Agente Statistico (anteprima partite) — PRIMO PASSO verso le distribuzioni (fase 2).
+"""Agente Statistico (anteprime partite) — fase 2.
 
-Modello volutamente semplice e trasparente (moltiplicativo forza attacco x debolezza difesa):
-    atteso_casa = media_lega_casa * attacco_casa(squadra) * difesa_trasferta(avversario)
-calcolato su gol (mescolando gol reali e xG quando disponibili), corner e cartellini, poi
-trasformato in probabilità con Poisson / Binomiale Negativa. Serve come riferimento da
-confrontare con le frequenze storiche e le quote, NON come segnale di gioco automatico.
+Usa `matchlab.stats.model.MatchModel` (forza attacco × debolezza difesa, Poisson /
+Dixon-Coles per i gol, binomiale negativa per corner e cartellini, correzione arbitro)
+con i parametri tarati dal backtest (data/model_params.json), e confronta le
+probabilità con quelle del bookmaker senza margine.
 """
 from __future__ import annotations
 
 import numpy as np
 
 from ..stats import distributions as dist
-from ..stats.metrics import lookup
+from ..stats.model import MatchModel, ModelParams
+from .absences import team_absences
 from .base import Agent, AgentOutput, Context
-from .referee import referee_factors
-
-
-def _rate(ctx: Context, team: str, metric: str, venue: str) -> tuple[float, float] | None:
-    """(valore shrunk, media lega) per squadra/metrica/campo."""
-    r = lookup(ctx.profiles, team, metric, venue)
-    if r is None or np.isnan(r.shrunk) or not r.league:
-        return None
-    return float(r.shrunk), float(r.league)
-
-
-def expected(ctx: Context, home: str, away: str, for_metric: str, against_metric: str) -> tuple[float, float] | None:
-    hf, ha = _rate(ctx, home, for_metric, "H"), _rate(ctx, home, against_metric, "H")
-    af, aa = _rate(ctx, away, for_metric, "A"), _rate(ctx, away, against_metric, "A")
-    if None in (hf, ha, af, aa):
-        return None
-    league_home, league_away = hf[1], af[1]  # media "fatti" in casa / in trasferta
-    lam_home = league_home * (hf[0] / league_home) * (aa[0] / aa[1])
-    lam_away = league_away * (af[0] / league_away) * (ha[0] / ha[1])
-    return lam_home, lam_away
+from .referee import referee_matches
 
 
 class PreviewAgent(Agent):
     name = "Statistico (anteprime)"
-    role = "Valori attesi e probabilità di base per le prossime partite (fase 2, sperimentale)."
+    role = "Valori attesi e probabilità per la prossima giornata, a confronto con le quote (fase 2)."
+
+    def __init__(self, params: ModelParams | None = None):
+        self.params = params
 
     def run(self, ctx: Context) -> AgentOutput:
         out = AgentOutput(self.name, self.role)
         fx = ctx.data.fixtures
         if fx is None or fx.empty:
-            out.notes.append("Nessuna partita della prossima giornata ancora pubblicata su football-data (fixtures.csv): "
-                           "di solito compare 2-3 giorni prima; in alternativa usa --fixtures-csv.")
+            out.notes.append("Nessuna partita della prossima giornata trovata (football-data / SofaScore).")
             return out
-        tm = ctx.data.team_matches
         teams = set(ctx.data.teams)
-        disp = {}
-        for base in ("corners_for", "cards_for"):
-            if ctx.data.has(base):
-                disp[base] = {v: dist.fit_dispersion(tm.loc[tm.venue == v, base]) for v in ("H", "A")}
-        ref_stats = referee_factors(ctx)
+        prev = ctx.data.previous.team_matches if ctx.data.previous is not None else None
+        model = MatchModel(ctx.data.team_matches, self.params or ModelParams.load(), prev, referee_matches(ctx))
+        out.tables["params"] = model.p.to_dict()
 
         previews = []
         for f in fx.itertuples():
@@ -60,39 +40,35 @@ class PreviewAgent(Agent):
                 continue
             book = _book_odds(f)
             p = {"home": f.home, "away": f.away, "date": f.date, "rows": []}
-            goals = expected(ctx, f.home, f.away, "goals_for", "goals_against")
-            if goals and ctx.data.has("xg_for"):
-                xg = expected(ctx, f.home, f.away, "xg_for", "xg_against")
-                if xg:
-                    goals = ((goals[0] + xg[0]) / 2, (goals[1] + xg[1]) / 2)
-            if goals:
-                mat = dist.score_matrix(*goals)
+            ref = getattr(f, "referee", None)
+            ref = ref if isinstance(ref, str) else None
+            missing = getattr(f, "missing", None)
+            missing = missing if isinstance(missing, dict) else {}
+            abs_h, mult_h = team_absences(ctx.data.players, f.home, missing.get("home", []))
+            abs_a, mult_a = team_absences(ctx.data.players, f.away, missing.get("away", []))
+            p["absences"] = {"home": abs_h, "away": abs_a, "mult": (mult_h, mult_a),
+                             "confirmed": missing.get("confirmed", False)}
+            pred = model.predict(f.home, f.away, ref, goal_mult=(mult_h, mult_a))
+            if "goals" in pred:
+                mat = pred["goals"]["matrix"]
                 m = dist.match_markets(mat)
-                p["goals"] = {"exp": goals, "top_scores": m["top_scores"]}
+                p["goals"] = {"exp": pred["goals"]["exp"], "top_scores": m["top_scores"]}
                 for key, label in (("1", "1"), ("X", "X"), ("2", "2")):
                     p["rows"].append(_row(label, m[key], book.get("1x2"), key))
                 p["rows"].append(_row("Gol (entrambe segnano)", m["gol"], book.get("btts"), "Yes"))
-                total = dist.total_goals_pmf(mat)
+                total = pred["goals"]["total"]
                 for line in _lines((1.5, 2.5, 3.5), book.get("goals"), 1.5, 4.5):
                     p["rows"].append(_row(f"Over {line} gol", dist.over_prob(total, line),
                                           (book.get("goals") or {}).get(line), "Over"))
-            corners = expected(ctx, f.home, f.away, "corners_for", "corners_against")
-            if corners:
-                d = disp.get("corners_for", {})
-                total = dist.sum_pmf(dist.negbin_pmf(corners[0], d.get("H")), dist.negbin_pmf(corners[1], d.get("A")))
-                p["corners"] = {"exp": corners}
+            if "corners" in pred:
+                total = pred["corners"]["total"]
+                p["corners"] = {"exp": pred["corners"]["exp"]}
                 for line in _lines((8.5, 9.5, 10.5), book.get("corners"), 6.5, 13.5):
                     p["rows"].append(_row(f"Over {line} corner", dist.over_prob(total, line),
                                           (book.get("corners") or {}).get(line), "Over"))
-            cards = expected(ctx, f.home, f.away, "cards_for", "cards_against")
-            if cards:
-                ref = getattr(f, "referee", None)
-                ref = ref if isinstance(ref, str) else None
-                factor = ref_stats.get(ref, 1.0) if ref else 1.0
-                cards = (cards[0] * factor, cards[1] * factor)
-                d = disp.get("cards_for", {})
-                total = dist.sum_pmf(dist.negbin_pmf(cards[0], d.get("H")), dist.negbin_pmf(cards[1], d.get("A")))
-                p["cards"] = {"exp": cards, "referee": ref, "ref_factor": factor}
+            if "cards" in pred:
+                total = pred["cards"]["total"]
+                p["cards"] = {"exp": pred["cards"]["exp"], "referee": ref, "ref_factor": pred["cards"]["ref_factor"]}
                 for line in _lines((3.5, 4.5, 5.5), book.get("cards"), 2.5, 7.5):
                     p["rows"].append(_row(f"Over {line} cartellini", dist.over_prob(total, line),
                                           (book.get("cards") or {}).get(line), "Over"))

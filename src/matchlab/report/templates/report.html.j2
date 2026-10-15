@@ -102,7 +102,7 @@ a { color: var(--accent); }
     <div class="card">
       <h2>Prossime partite <span class="tag">fase 2 · sperimentale</span></h2>
       <p class="muted small">Probabilità del modello attacco × difesa (Poisson per i gol, binomiale negativa per corner e cartellini,
-      cartellini corretti per l'arbitro designato) a confronto con il bookmaker. "Prob. bookmaker" è la probabilità implicita nella quota
+      cartellini corretti per l'arbitro designato, gol attesi ridotti in base al peso offensivo degli assenti) a confronto con il bookmaker. "Prob. bookmaker" è la probabilità implicita nella quota
       <em>senza margine</em>. Sono evidenziati gli esiti dove il modello vede almeno 5 punti percentuali in più del mercato:
       sono spunti da approfondire, non consigli di gioco. Il mercato, di norma, è più preciso di questo modello.</p>
       {% for p in previews %}
@@ -114,6 +114,7 @@ a { color: var(--accent); }
         {% if p.referee %}<span>Arbitro: {{ p.referee }}{% if p.ref_factor %} (fattore {{ "%.2f" % p.ref_factor }}){% endif %}</span>{% endif %}
         {% if p.scores %}<span>Risultati più probabili: {{ p.scores }}</span>{% endif %}
       </div>
+      {% for a in p.absences %}<div class="small" style="margin-top:4px"><strong>Assenti {{ a.team }}:</strong> {{ a.text }}{% if a.adj %} → <em>{{ a.adj }}</em>{% endif %}</div>{% endfor %}
       {% if p.flags %}<div class="meta small" style="margin-top:6px">{% for r in p.flags %}<span class="tag flag">{{ r.label }}: modello {{ r.model_p | pct }} vs mercato {{ r.book_p | pct }}</span>{% endfor %}</div>{% endif %}
       <details><summary>Tutti gli esiti</summary><div class="scroll"><table class="tbl">
         <tr><th>Esito</th><th>Modello</th><th>Quota equa</th><th>Quota bookmaker</th><th>Prob. bookmaker</th><th>Differenza</th></tr>

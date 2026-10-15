@@ -24,8 +24,11 @@ PER90_LABELS = {
     "shots_on_target": "Tiri in porta/90",
     "crosses": "Cross/90",
     "saves": "Parate/90",
+    "big_chances_created": "Grandi occasioni create/90",
+    "clearances": "Respinte/90",
 }
-NOT_PER90 = {"games", "minutes", "red_cards", "assists", "np_goals", "xg_buildup", "age", "rating"}
+NOT_PER90 = {"games", "minutes", "red_cards", "assists", "np_goals", "xg_buildup", "age", "rating", "minutes_sofa",
+             "appearances"}
 # Metriche dove un valore alto è da segnalare come tendenza (non necessariamente "bravo").
 HIGHLIGHT = ["shots", "xg", "xa", "key_passes", "yellow_cards", "dribbles_completed", "fouls_committed",
              "fouls_won", "tackles", "shots_on_target"]
@@ -72,6 +75,8 @@ class PlayersAgent(Agent):
             for c in [x for x in PER90_LABELS if x in numeric and x not in ("goals",)] + \
                      [x for x in numeric if x not in PER90_LABELS]:
                 t[_label(c)] = g[f"{c}_p90"].round(2)
+            if "rating" in g.columns:
+                t["Voto medio"] = g["rating"].round(2)
             if "xg_share" in g.columns:
                 t["% xG squadra"] = (g["xg_share"] * 100).round(0)
             for c in ("xG", "xA"):
