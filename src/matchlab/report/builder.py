@@ -90,6 +90,42 @@ def _previews(result: AnalysisResult) -> list[dict]:
     return items
 
 
+def _reliability() -> dict | None:
+    """Risultati dell'ultimo backtest (data/model_params.json), se presente."""
+    from ..stats.model import PARAMS_PATH
+
+    try:
+        rep = json.loads(PARAMS_PATH.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+    v = rep.get("verifica_tarato")
+    if not v:
+        return None
+    rows = []
+    for label, key in (("1X2", "1x2"), ("Over/Under 2.5", "over25")):
+        x = v[key]
+        rows.append({"Mercato": label, "Modello": f"{x['modello']:.3f}", "Previsione ingenua": f"{x['ingenuo']:.3f}",
+                     "Bookmaker (chiusura)": f"{x['mercato_chiusura']:.3f}" if "mercato_chiusura" in x else "–"})
+    for label, key, line in (("Corner Over 9.5", "corners", "9.5"), ("Cartellini Over 4.5", "cards", "4.5")):
+        if key in v:
+            x = v[key]
+            rows.append({"Mercato": label, "Modello": f"{x[f'over{line}_modello']:.3f}",
+                         "Previsione ingenua": f"{x[f'over{line}_ingenuo']:.3f}", "Bookmaker (chiusura)": "–"})
+    bets = [{"Esito": k, "Giocate": b["giocate"], "Vinte": b["vinte"], "Profitto (unità)": b["profitto"],
+             "ROI": f"{b['roi'] * 100:+.1f}%"} for k, b in v.get("scommesse_simulate", {}).items()]
+    calib = [{"Probabilità prevista": f"{c['prevista'] * 100:.0f}%", "Accaduto davvero": f"{c['reale'] * 100:.0f}%",
+              "Partite": c["partite"]} for c in v.get("calibrazione_over25", [])]
+    season = rep["stagione_verifica"]
+    return {
+        "season": f"{season}/{(season + 1) % 100:02d}",
+        "train": f"{rep['stagione_taratura']}/{(rep['stagione_taratura'] + 1) % 100:02d}",
+        "matches": v["partite"],
+        "scores": _html_table(pd.DataFrame(rows), "tbl"),
+        "bets": _html_table(pd.DataFrame(bets), "tbl"),
+        "calib": _html_table(pd.DataFrame(calib), "tbl"),
+    }
+
+
 def build_context(result: AnalysisResult) -> dict:
     data = result.context.data
     o = result.outputs
@@ -109,6 +145,7 @@ def build_context(result: AnalysisResult) -> dict:
         "league_insights": sorted((i for i in result.insights if i.team is None), key=lambda i: -i.score),
         "teams": [_team_view(result, t) for t in data.teams],
         "previews": _previews(result),
+        "reliability": _reliability(),
     }
 
 

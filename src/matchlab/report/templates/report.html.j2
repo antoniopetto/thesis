@@ -105,6 +105,18 @@ a { color: var(--accent); }
       cartellini corretti per l'arbitro designato, gol attesi ridotti in base al peso offensivo degli assenti) a confronto con il bookmaker. "Prob. bookmaker" è la probabilità implicita nella quota
       <em>senza margine</em>. Sono evidenziati gli esiti dove il modello vede almeno 5 punti percentuali in più del mercato:
       sono spunti da approfondire, non consigli di gioco. Il mercato, di norma, è più preciso di questo modello.</p>
+      {% if reliability %}
+      <details><summary>Affidabilità del modello (backtest {{ reliability.season }})</summary>
+        <p class="muted small">Il modello è stato tarato sulla stagione {{ reliability.train }} e poi messo alla prova sulla
+        {{ reliability.season }} ({{ reliability.matches }} partite), giornata per giornata, usando solo le partite già giocate.
+        Errore medio (log-loss): <strong>più basso è meglio</strong>. La "previsione ingenua" usa solo le frequenze del campionato.</p>
+        <div class="scroll">{{ reliability.scores | safe }}</div>
+        <h3>Se avessi giocato tutti gli esiti evidenziati (puntata fissa, quote medie di apertura)</h3>
+        <div class="scroll">{{ reliability.bets | safe }}</div>
+        <h3>Calibrazione Over 2.5: quando il modello dice X%, quanto spesso succede?</h3>
+        <div class="scroll">{{ reliability.calib | safe }}</div>
+      </details>
+      {% endif %}
       {% for p in previews %}
       <h3><a href="#{{ p.home_slug }}">{{ p.home }}</a> – <a href="#{{ p.away_slug }}">{{ p.away }}</a> <span class="muted">· {{ p.date }}</span></h3>
       <div class="meta small">
