@@ -1,0 +1,281 @@
+{
+ "generato": "2026-10-15T13:14:26",
+ "campionato": "Serie A",
+ "stagione_taratura": 2024,
+ "stagione_verifica": 2025,
+ "params": {
+  "shrinkage": 10.0,
+  "prior_weight": 0.9,
+  "league_anchor": 100.0,
+  "xg_weight": 0.8,
+  "strength_exp": {
+   "goals": 1.0,
+   "corners": 0.5,
+   "cards": 0.75
+  },
+  "rho": -0.05,
+  "ref_shrink": 6.0
+ },
+ "verifica_default": {
+  "partite": 356,
+  "1x2": {
+   "modello": 1.024036227182726,
+   "ingenuo": 1.2038004303737804,
+   "mercato_chiusura": 0.9755266838099742,
+   "modello_stesse_partite": 1.024036227182726
+  },
+  "over25": {
+   "modello": 0.7089841450012551,
+   "ingenuo": 0.7531635229796234,
+   "mercato_chiusura": 0.7045762453004291,
+   "modello_stesse_partite": 0.7089841450012551
+  },
+  "gol_media_prevista": 2.4186272407179192,
+  "gol_media_reale": 2.438202247191011,
+  "ll_risultato_esatto": -2.7906989822424966,
+  "corners": {
+   "ll_totale": -2.605820722499664,
+   "over9.5_modello": 0.6843254235713541,
+   "over9.5_ingenuo": 0.7352021998338213,
+   "media_prevista": 9.009809253538274,
+   "media_reale": 8.786516853932584
+  },
+  "cards": {
+   "ll_totale": -2.028226495401771,
+   "over4.5_modello": 0.5838858063577066,
+   "over4.5_ingenuo": 0.7136010645263065,
+   "media_prevista": 3.9165110985945293,
+   "media_reale": 3.9101123595505616
+  },
+  "calibrazione_over25": [
+   {
+    "fascia": "(-0.001, 0.3]",
+    "partite": 26,
+    "prevista": 0.2667752326919093,
+    "reale": 0.5
+   },
+   {
+    "fascia": "(0.3, 0.4]",
+    "partite": 100,
+    "prevista": 0.3581875713744083,
+    "reale": 0.48
+   },
+   {
+    "fascia": "(0.4, 0.5]",
+    "partite": 151,
+    "prevista": 0.4467880409968309,
+    "reale": 0.45695364238410596
+   },
+   {
+    "fascia": "(0.5, 0.6]",
+    "partite": 67,
+    "prevista": 0.5340096174899678,
+    "reale": 0.47761194029850745
+   },
+   {
+    "fascia": "(0.6, 0.7]",
+    "partite": 9,
+    "prevista": 0.6376819458321703,
+    "reale": 0.2222222222222222
+   },
+   {
+    "fascia": "(0.7, 1.0]",
+    "partite": 3,
+    "prevista": 0.7146929358231372,
+    "reale": 1.0
+   }
+  ],
+  "calibrazione_1": [
+   {
+    "fascia": "(-0.001, 0.3]",
+    "partite": 112,
+    "prevista": 0.21745311083486277,
+    "reale": 0.22321428571428573
+   },
+   {
+    "fascia": "(0.3, 0.4]",
+    "partite": 78,
+    "prevista": 0.3468294766984422,
+    "reale": 0.34615384615384615
+   },
+   {
+    "fascia": "(0.4, 0.5]",
+    "partite": 78,
+    "prevista": 0.4464929602034726,
+    "reale": 0.4358974358974359
+   },
+   {
+    "fascia": "(0.5, 0.6]",
+    "partite": 47,
+    "prevista": 0.5510230574801763,
+    "reale": 0.574468085106383
+   },
+   {
+    "fascia": "(0.6, 0.7]",
+    "partite": 30,
+    "prevista": 0.6436015901244425,
+    "reale": 0.6
+   },
+   {
+    "fascia": "(0.7, 1.0]",
+    "partite": 11,
+    "prevista": 0.7524686703477762,
+    "reale": 0.7272727272727273
+   }
+  ],
+  "scommesse_simulate": {
+   "1X2": {
+    "giocate": 220,
+    "vinte": 54,
+    "profitto": -21.28,
+    "roi": -0.0967
+   },
+   "Over 2.5": {
+    "giocate": 60,
+    "vinte": 30,
+    "profitto": 3.68,
+    "roi": 0.0613
+   },
+   "Under 2.5": {
+    "giocate": 148,
+    "vinte": 82,
+    "profitto": -0.86,
+    "roi": -0.0058
+   },
+   "tutte": {
+    "giocate": 428,
+    "vinte": 166,
+    "profitto": -18.46,
+    "roi": -0.0431
+   }
+  }
+ },
+ "verifica_tarato": {
+  "partite": 356,
+  "1x2": {
+   "modello": 1.0167895067436525,
+   "ingenuo": 1.2038004303737804,
+   "mercato_chiusura": 0.9755266838099742,
+   "modello_stesse_partite": 1.0167895067436525
+  },
+  "over25": {
+   "modello": 0.7035977724347205,
+   "ingenuo": 0.7531635229796234,
+   "mercato_chiusura": 0.7045762453004291,
+   "modello_stesse_partite": 0.7035977724347205
+  },
+  "gol_media_prevista": 2.458785398838261,
+  "gol_media_reale": 2.438202247191011,
+  "ll_risultato_esatto": -2.779662584944347,
+  "corners": {
+   "ll_totale": -2.58052105932029,
+   "over9.5_modello": 0.6722965581295811,
+   "over9.5_ingenuo": 0.7352021998338213,
+   "media_prevista": 8.997532504886818,
+   "media_reale": 8.786516853932584
+  },
+  "cards": {
+   "ll_totale": -1.998801261440843,
+   "over4.5_modello": 0.5708326703671415,
+   "over4.5_ingenuo": 0.7136010645263065,
+   "media_prevista": 3.9240438675727556,
+   "media_reale": 3.9101123595505616
+  },
+  "calibrazione_over25": [
+   {
+    "fascia": "(-0.001, 0.3]",
+    "partite": 3,
+    "prevista": 0.28389215339322976,
+    "reale": 0.3333333333333333
+   },
+   {
+    "fascia": "(0.3, 0.4]",
+    "partite": 92,
+    "prevista": 0.36469840919239976,
+    "reale": 0.5108695652173914
+   },
+   {
+    "fascia": "(0.4, 0.5]",
+    "partite": 192,
+    "prevista": 0.44846880667751243,
+    "reale": 0.4375
+   },
+   {
+    "fascia": "(0.5, 0.6]",
+    "partite": 62,
+    "prevista": 0.5336058840633207,
+    "reale": 0.5
+   },
+   {
+    "fascia": "(0.6, 0.7]",
+    "partite": 7,
+    "prevista": 0.6288687089205067,
+    "reale": 0.5714285714285714
+   }
+  ],
+  "calibrazione_1": [
+   {
+    "fascia": "(-0.001, 0.3]",
+    "partite": 104,
+    "prevista": 0.2189572083549996,
+    "reale": 0.22115384615384615
+   },
+   {
+    "fascia": "(0.3, 0.4]",
+    "partite": 92,
+    "prevista": 0.3518299709209803,
+    "reale": 0.3695652173913043
+   },
+   {
+    "fascia": "(0.4, 0.5]",
+    "partite": 59,
+    "prevista": 0.444856826865318,
+    "reale": 0.3898305084745763
+   },
+   {
+    "fascia": "(0.5, 0.6]",
+    "partite": 63,
+    "prevista": 0.5472517487069727,
+    "reale": 0.5079365079365079
+   },
+   {
+    "fascia": "(0.6, 0.7]",
+    "partite": 34,
+    "prevista": 0.6433074044854985,
+    "reale": 0.7058823529411765
+   },
+   {
+    "fascia": "(0.7, 1.0]",
+    "partite": 4,
+    "prevista": 0.7618858706328684,
+    "reale": 0.75
+   }
+  ],
+  "scommesse_simulate": {
+   "1X2": {
+    "giocate": 211,
+    "vinte": 48,
+    "profitto": -32.12,
+    "roi": -0.1522
+   },
+   "Over 2.5": {
+    "giocate": 46,
+    "vinte": 18,
+    "profitto": -6.87,
+    "roi": -0.1493
+   },
+   "Under 2.5": {
+    "giocate": 91,
+    "vinte": 52,
+    "profitto": 5.25,
+    "roi": 0.0577
+   },
+   "tutte": {
+    "giocate": 348,
+    "vinte": 118,
+    "profitto": -33.74,
+    "roi": -0.097
+   }
+  }
+ }
+}
