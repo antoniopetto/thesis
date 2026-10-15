@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import DEFAULT_CACHE_DIR, DEFAULT_MANUAL_DIR, League
-from . import football_data, manual, understat
+from . import football_data, manual, sofascore, understat
 from .cache import FetchError, HttpCache
 from .names import canonical
 
@@ -43,6 +43,7 @@ class LeagueData:
     coaches: dict[str, str] = field(default_factory=dict)
     sources: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    referee_career: pd.DataFrame = field(default_factory=pd.DataFrame)  # statistiche carriera (SofaScore)
     previous: "LeagueData | None" = None  # stagione precedente (stesso campionato), se disponibile
 
     @property
@@ -117,20 +118,24 @@ def merge_understat(tm: pd.DataFrame, us: pd.DataFrame) -> pd.DataFrame:
     return merged.sort_values(["date", "match_id", "venue"]).reset_index(drop=True)
 
 
-def merge_referees(matches: pd.DataFrame, refs: pd.DataFrame | None) -> pd.DataFrame:
-    if refs is None:
+def merge_referees(matches: pd.DataFrame, refs: pd.DataFrame | None, by_date: bool = True) -> pd.DataFrame:
+    """Aggiunge la colonna `referee` (senza sovrascrivere quelle già presenti).
+
+    by_date=False abbina solo per casa/ospite: va bene quando `refs` copre una sola
+    stagione, in cui ogni accoppiamento casa-ospite capita una volta sola.
+    """
+    if refs is None or refs.empty or matches.empty:
         return matches
     known = sorted(set(matches["home"]) | set(matches["away"]))
+    keys = ["home", "away"] + (["_d"] if by_date else [])
     refs = refs.assign(
         home=refs["home"].map(lambda n: canonical(n, known)),
         away=refs["away"].map(lambda n: canonical(n, known)),
-        _d=refs["date"],
-    )[["home", "away", "_d", "referee"]].rename(columns={"referee": "_ref"})
-    out = matches.assign(_d=matches["date"].dt.normalize()).merge(refs, on=["home", "away", "_d"], how="left")
-    if "referee" in out.columns:
-        out["referee"] = out["referee"].fillna(out["_ref"])
-    else:
-        out["referee"] = out["_ref"]
+        _d=pd.to_datetime(refs["date"]).dt.normalize(),
+    )[keys + ["referee"]].dropna(subset=["referee"]).drop_duplicates(keys, keep="last")
+    refs = refs.rename(columns={"referee": "_ref"})
+    out = matches.assign(_d=matches["date"].dt.normalize()).merge(refs, on=keys, how="left")
+    out["referee"] = out["referee"].fillna(out["_ref"]) if "referee" in out.columns else out["_ref"]
     return out.drop(columns=["_d", "_ref"])
 
 
@@ -156,6 +161,7 @@ def build(
     matches_csv: Path | None = None,
     fixtures_csv: Path | None = None,
     use_understat: bool = True,
+    use_sofascore: bool = True,
     with_previous: bool = True,
     prev_matches_csv: Path | None = None,
     _is_previous: bool = False,
@@ -167,6 +173,14 @@ def build(
     matches = football_data.load_season(league, season, cache, csv_path=matches_csv)
     referees = manual.load_referees(manual_dir)
     matches = merge_referees(matches, referees)
+    sofa_refs = pd.DataFrame()
+    if use_sofascore:
+        try:
+            sofa_refs = sofascore.referees(league, season, cache, upcoming=not _is_previous)
+            matches = merge_referees(matches, sofa_refs, by_date=False)
+            sources.append("sofascore.com (arbitri)")
+        except (FetchError, ValueError, KeyError) as exc:
+            warnings.append(f"SofaScore non disponibile ({exc}): arbitri solo da data/manual/referees.csv.")
     tm = to_team_matches(matches)
     known = sorted(tm["team"].unique())
 
@@ -198,8 +212,28 @@ def build(
             away=fixtures["away"].map(lambda n: canonical(n, known)),
         )
         fixtures = merge_referees(fixtures, referees)
+        fixtures = merge_referees(fixtures, sofa_refs, by_date=False)
     except (FetchError, ValueError, KeyError) as exc:
         warnings.append(f"Calendario prossime partite non disponibile ({exc}).")
+    if fixtures.empty and not sofa_refs.empty:
+        # Prossima giornata non ancora su football-data: calendario (senza quote) da SofaScore.
+        nxt = sofa_refs[sofa_refs["status"] == "notstarted"].copy()
+        if not nxt.empty:
+            nxt["home"] = nxt["home"].map(lambda n: canonical(n, known))
+            nxt["away"] = nxt["away"].map(lambda n: canonical(n, known))
+            fixtures = nxt[["date", "home", "away", "referee"]].sort_values("date").reset_index(drop=True)
+    if not fixtures.empty:
+        # Solo la prossima giornata (le successive non hanno ancora arbitro né quote affidabili).
+        fixtures = fixtures[fixtures["date"] <= fixtures["date"].min() + pd.Timedelta(days=5)].reset_index(drop=True)
+    if not fixtures.empty and not sofa_refs.empty:
+        ids = sofa_refs.assign(
+            home=sofa_refs["home"].map(lambda n: canonical(n, known)),
+            away=sofa_refs["away"].map(lambda n: canonical(n, known)),
+        ).drop_duplicates(["home", "away"], keep="last")[["home", "away", "event_id"]]
+        fixtures = fixtures.drop(columns=["event_id"], errors="ignore").merge(ids, on=["home", "away"], how="left")
+        fixtures["book_odds"] = [
+            sofascore.odds(cache, int(e)) if pd.notna(e) else {} for e in fixtures["event_id"]
+        ]
 
     coaches = manual.load_coaches(manual_dir)
     coaches = {canonical(t, known): c for t, c in coaches.items()}
@@ -209,14 +243,23 @@ def build(
         try:
             previous = build(
                 league, season - 1, cache_dir=cache_dir, manual_dir=manual_dir, offline=offline,
-                matches_csv=prev_matches_csv, use_understat=use_understat, _is_previous=True,
+                matches_csv=prev_matches_csv, use_understat=use_understat, use_sofascore=use_sofascore,
+                _is_previous=True,
             )
             if previous.matches.empty:
                 previous = None
         except (FetchError, ValueError, KeyError) as exc:
             warnings.append(f"Stagione precedente non disponibile ({exc}): niente confronto né prior.")
 
+    career = pd.DataFrame()
+    if not sofa_refs.empty:
+        career = (
+            sofa_refs.dropna(subset=["referee"]).drop_duplicates("referee", keep="last")
+            .set_index("referee")[["ref_career_games", "ref_career_yellows", "ref_career_reds"]]
+        )
+
     return LeagueData(
+        referee_career=career,
         previous=previous,
         league=league,
         season=season,

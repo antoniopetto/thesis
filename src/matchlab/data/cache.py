@@ -27,9 +27,12 @@ class HttpCache:
         digest = hashlib.sha1(url.encode()).hexdigest()[:16]
         return self.cache_dir / f"{digest}{suffix}"
 
-    def get_bytes(self, url: str, suffix: str = ".bin", headers: dict | None = None) -> bytes:
+    def get_bytes(
+        self, url: str, suffix: str = ".bin", headers: dict | None = None, max_age_hours: float | None = None
+    ) -> bytes:
         path = self._path(url, suffix)
-        fresh = path.exists() and (time.time() - path.stat().st_mtime) < self.max_age_s
+        max_age_s = self.max_age_s if max_age_hours is None else max_age_hours * 3600
+        fresh = path.exists() and (time.time() - path.stat().st_mtime) < max_age_s
         if path.exists() and (fresh or self.offline):
             return path.read_bytes()
         if self.offline:

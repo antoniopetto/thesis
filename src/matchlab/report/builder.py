@@ -11,7 +11,6 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..agents.orchestrator import AnalysisResult
 from ..config import season_label
-from ..stats.distributions import fair_odds
 
 TEMPLATES = Path(__file__).parent / "templates"
 
@@ -58,29 +57,22 @@ def _previews(result: AnalysisResult) -> list[dict]:
     prev = result.outputs.get("Statistico (anteprime)")
     items = []
     for p in (prev.tables.get("previews", []) if prev else []):
-        g = p.get("goals")
         item = {"home": p["home"], "away": p["away"], "date": pd.Timestamp(p["date"]).strftime("%d/%m/%Y"),
-                "home_slug": slug(p["home"]), "away_slug": slug(p["away"]), "rows": []}
-        odds = p.get("odds", {})
-        if g:
-            m = g["markets"]
+                "home_slug": slug(p["home"]), "away_slug": slug(p["away"]), "rows": p["rows"],
+                "has_book": p.get("has_book")}
+        if p.get("goals"):
+            g = p["goals"]
             item["xg"] = f"{g['exp'][0]:.2f} – {g['exp'][1]:.2f}"
-            for key, label, okey in (("1", "1", "odds_home"), ("X", "X", "odds_draw"), ("2", "2", "odds_away"),
-                                     ("over_2.5", "Over 2.5", "odds_over25"), ("gol", "Gol (entrambe segnano)", None),
-                                     ("over_1.5", "Over 1.5", None), ("over_3.5", "Over 3.5", None)):
-                item["rows"].append((label, m[key], fair_odds(m[key]), odds.get(okey) if okey else None))
-            item["scores"] = ", ".join(f"{s} ({pr * 100:.0f}%)" for s, pr in m["top_scores"][:3])
+            item["scores"] = ", ".join(f"{s} ({pr * 100:.0f}%)" for s, pr in g["top_scores"][:3])
         if p.get("corners"):
-            c = p["corners"]
-            item["corners"] = f"{c['exp'][0]:.1f} – {c['exp'][1]:.1f}"
-            for line, pr in c["over"].items():
-                item["rows"].append((f"Over {line} corner", pr, fair_odds(pr), None))
+            c = p["corners"]["exp"]
+            item["corners"] = f"{c[0]:.1f} – {c[1]:.1f}"
         if p.get("cards"):
             c = p["cards"]
             item["cards"] = f"{c['exp'][0]:.1f} – {c['exp'][1]:.1f}"
             item["referee"] = c.get("referee")
-            for line, pr in c["over"].items():
-                item["rows"].append((f"Over {line} cartellini", pr, fair_odds(pr), None))
+            item["ref_factor"] = c.get("ref_factor")
+        item["flags"] = [r for r in p["rows"] if r["flag"]]
         items.append(item)
     return items
 
@@ -99,8 +91,9 @@ def build_context(result: AnalysisResult) -> dict:
         "warnings": data.warnings + [n for out in o.values() for n in out.notes],
         "agents": [(out.agent, out.role, len(out.insights)) for out in o.values()],
         "standings": _html_table(o["Risultati & forma"].tables.get("classifica"), "tbl lead2") if "Risultati & forma" in o else "",
-        "referees": _html_table(ref.tables.get("referees")) if ref else "",
-        "league_insights": [i for i in result.insights if i.team is None],
+        "referees": _html_table(ref.tables.get("referees"), "tbl lead1") if ref else "",
+        "referees_next": _html_table(pd.DataFrame(ref.tables.get("upcoming") or []), "tbl lead3") if ref else "",
+        "league_insights": sorted((i for i in result.insights if i.team is None), key=lambda i: -i.score),
         "teams": [_team_view(result, t) for t in data.teams],
         "previews": _previews(result),
     }

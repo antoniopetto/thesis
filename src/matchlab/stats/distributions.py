@@ -69,6 +69,11 @@ def score_matrix(lam_home: float, lam_away: float, rho: float = -0.05, kmax: int
     return m / m.sum()
 
 
+def total_goals_pmf(matrix: np.ndarray) -> np.ndarray:
+    i, j = np.indices(matrix.shape)
+    return np.bincount((i + j).ravel(), weights=matrix.ravel())
+
+
 def match_markets(matrix: np.ndarray, lines=(1.5, 2.5, 3.5)) -> dict:
     n = matrix.shape[0]
     i, j = np.indices(matrix.shape)

@@ -30,6 +30,7 @@ Opzioni utili: `--offline` (usa la cache), `--matches-csv`/`--fixtures-csv` (fil
 |---|---|---|
 | [football-data.co.uk](https://www.football-data.co.uk) | risultati, tiri, corner, falli, cartellini, quote medie, calendario | gratuita; per la Serie A **manca l'arbitro** |
 | [understat.com](https://understat.com) | xG/xGA, PPDA (pressing), deep, xPts, giocatori (xG, xA, tiri, passaggi chiave, cartellini) | gratuita, solo top-5 campionati |
+| [SofaScore](https://www.sofascore.com) (API pubblica non ufficiale) | arbitro di ogni partita (anche designazioni della prossima giornata), statistiche di carriera arbitri, calendario e quote pre-partita (1X2, Gol/NoGol, Over/Under gol, corner, cartellini) | il primo download della stagione precedente richiede alcuni minuti, poi resta in cache |
 | `data/manual/*.csv` | allenatori, designazioni arbitrali, statistiche giocatori extra (dribbling, contrasti, falli...) | da compilare o esportare (SofaScore, FBref, Opta se disponibile) |
 
 I download vengono salvati in `data/cache/` (12 ore), così si può rigenerare il report offline.
@@ -54,9 +55,13 @@ fonti dati ──► dataset (una riga per squadra per partita) ──► profil
 | Disciplina | falli e cartellini fatti/subiti |
 | Allenatore & stile | profilo di gioco dai dati (pressing, volume/qualità tiri, partite aperte/chiuse) |
 | Scout giocatori | statistiche per 90' e percentili di lega (tiri, xG, xA, gialli, dribbling...) |
-| Arbitri | severità per arbitro (si attiva con `data/manual/referees.csv`) |
+| Arbitri | severità per arbitro su stagione in corso + precedente, "fattore cartellini", designazioni della prossima giornata |
 | Mercati | frequenze storiche: 1X2, Over/Under, Gol/NoGol, corner, cartellini |
-| Statistico (anteprime) | **fase 2**: gol/corner/cartellini attesi e probabilità per le prossime partite |
+| Statistico (anteprime) | **fase 2**: gol/corner/cartellini attesi e probabilità per la prossima giornata, a confronto con le quote senza margine |
+
+**Stagione precedente.** Viene caricata automaticamente: compare come colonna "Stag. scorsa" e fa da
+punto di partenza delle medie (media di lega + 60% dello scarto della squadra l'anno prima; per le
+neopromosse solo la media di lega).
 
 **Regole di segnalazione.** Una metrica diventa "punto di forza/debolezza" quando la squadra si
 discosta di almeno `z` deviazioni standard (default 1) dalle altre, calcolando le medie con

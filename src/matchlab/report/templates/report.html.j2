@@ -45,10 +45,13 @@ h3 { font-size: 15px; margin: 18px 0 6px; }
 .meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; }
 .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--neutral-bg); color: var(--neutral); }
 .scroll { overflow-x: auto; }
+.tag.flag { background: var(--good-bg); color: var(--good); }
+table.tbl tr.hl td { background: var(--good-bg); }
 table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
 table.tbl th, table.tbl td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
 table.tbl th:first-child, table.tbl td:first-child { text-align: left; }
-table.tbl.lead2 th:nth-child(2), table.tbl.lead2 td:nth-child(2) { text-align: left; }
+table.tbl.lead2 th:nth-child(2), table.tbl.lead2 td:nth-child(2),
+table.tbl.lead3 th:nth-child(-n+3), table.tbl.lead3 td:nth-child(-n+3) { text-align: left; }
 table.tbl th { color: var(--muted); font-weight: 600; }
 details summary { cursor: pointer; color: var(--accent); margin-top: 10px; }
 .warn { border-left: 3px solid var(--neutral); padding: 6px 10px; background: var(--neutral-bg); margin: 6px 0; font-size: 14px; }
@@ -78,6 +81,9 @@ a { color: var(--accent); }
     {% if referees %}
     <div class="card">
       <h2>Arbitri</h2>
+      {% if referees_next %}<h3>Designazioni prossima giornata</h3><div class="scroll">{{ referees_next | safe }}</div>
+      <p class="muted small">Fattore cartellini: 1 = arbitro nella media; 1.20 = circa il 20% di cartellini in più (stima prudente, pesata sul numero di partite).</p>
+      <h3>Tutti gli arbitri (stagione in corso + precedente)</h3>{% endif %}
       {% if league_insights %}<ul>{% for i in league_insights %}<li>{{ i.text }}</li>{% endfor %}</ul>{% endif %}
       <div class="scroll">{{ referees | safe }}</div>
     </div>
@@ -95,23 +101,28 @@ a { color: var(--accent); }
   <section id="anteprime">
     <div class="card">
       <h2>Prossime partite <span class="tag">fase 2 · sperimentale</span></h2>
-      <p class="muted small">Stime di base dal modello attacco × difesa (Poisson per i gol, binomiale negativa per corner e cartellini).
-      "Quota equa" = 1 / probabilità, senza margine del bookmaker. Usale come riferimento, non come consiglio di gioco.</p>
+      <p class="muted small">Probabilità del modello attacco × difesa (Poisson per i gol, binomiale negativa per corner e cartellini,
+      cartellini corretti per l'arbitro designato) a confronto con il bookmaker. "Prob. bookmaker" è la probabilità implicita nella quota
+      <em>senza margine</em>. Sono evidenziati gli esiti dove il modello vede almeno 5 punti percentuali in più del mercato:
+      sono spunti da approfondire, non consigli di gioco. Il mercato, di norma, è più preciso di questo modello.</p>
       {% for p in previews %}
       <h3><a href="#{{ p.home_slug }}">{{ p.home }}</a> – <a href="#{{ p.away_slug }}">{{ p.away }}</a> <span class="muted">· {{ p.date }}</span></h3>
       <div class="meta small">
         {% if p.xg %}<span>Gol attesi: <strong>{{ p.xg }}</strong></span>{% endif %}
         {% if p.corners %}<span>Corner attesi: <strong>{{ p.corners }}</strong></span>{% endif %}
         {% if p.cards %}<span>Cartellini attesi: <strong>{{ p.cards }}</strong></span>{% endif %}
-        {% if p.referee %}<span>Arbitro: {{ p.referee }}</span>{% endif %}
+        {% if p.referee %}<span>Arbitro: {{ p.referee }}{% if p.ref_factor %} (fattore {{ "%.2f" % p.ref_factor }}){% endif %}</span>{% endif %}
         {% if p.scores %}<span>Risultati più probabili: {{ p.scores }}</span>{% endif %}
       </div>
-      <div class="scroll"><table class="tbl">
-        <tr><th>Esito</th><th>Probabilità</th><th>Quota equa</th><th>Quota media mercato</th></tr>
-        {% for label, pr, fair, mkt in p.rows %}
-        <tr><td>{{ label }}</td><td>{{ pr | pct }}</td><td>{{ fair or "–" }}</td><td>{{ "%.2f" % mkt if mkt else "–" }}</td></tr>
+      {% if p.flags %}<div class="meta small" style="margin-top:6px">{% for r in p.flags %}<span class="tag flag">{{ r.label }}: modello {{ r.model_p | pct }} vs mercato {{ r.book_p | pct }}</span>{% endfor %}</div>{% endif %}
+      <details><summary>Tutti gli esiti</summary><div class="scroll"><table class="tbl">
+        <tr><th>Esito</th><th>Modello</th><th>Quota equa</th><th>Quota bookmaker</th><th>Prob. bookmaker</th><th>Differenza</th></tr>
+        {% for r in p.rows %}
+        <tr{% if r.flag %} class="hl"{% endif %}><td>{{ r.label }}</td><td>{{ r.model_p | pct }}</td><td>{{ r.fair_odds or "–" }}</td>
+          <td>{{ "%.2f" % r.book_odds if r.book_odds else "–" }}</td><td>{{ r.book_p | pct }}</td>
+          <td>{% if r.edge is not none %}{{ "%+.0f" % (r.edge * 100) }} pp{% else %}–{% endif %}</td></tr>
         {% endfor %}
-      </table></div>
+      </table></div></details>
       {% endfor %}
     </div>
   </section>

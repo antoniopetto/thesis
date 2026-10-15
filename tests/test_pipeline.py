@@ -49,8 +49,11 @@ def test_full_run_and_report(data, tmp_path):
     assert "artellini" in kappa_texts
     previews = result.outputs["Statistico (anteprime)"].tables["previews"]
     assert len(previews) == 5
-    m = previews[0]["goals"]["markets"]
-    assert abs(m["1"] + m["X"] + m["2"] - 1) < 1e-9
+    rows = {r["label"]: r for r in previews[0]["rows"]}
+    assert abs(rows["1"]["model_p"] + rows["X"]["model_p"] + rows["2"]["model_p"] - 1) < 1e-9
+    # Quote medie football-data del CSV sintetico: probabilità bookmaker senza margine.
+    assert abs(rows["1"]["book_p"] + rows["X"]["book_p"] + rows["2"]["book_p"] - 1) < 1e-9
+    assert rows["Over 2.5 gol"]["book_p"] == pytest.approx(0.5)
     paths = write_reports(result, tmp_path / "out")
     html = paths["html"].read_text()
     assert "Alfa" in html and "Punti di forza" in html and "Prossime partite" in html
@@ -87,3 +90,12 @@ def test_prior_from_previous_season(data):
     assert with_prior.shrunk > base.shrunk
     assert with_prior.value == base.value  # il dato grezzo della stagione non cambia
     assert with_prior.prev == pytest.approx(base.league + 1.0, rel=0.2)
+
+
+def test_book_row_margin_removed():
+    from matchlab.agents.preview import _row
+
+    r = _row("1", 0.55, {"1": 2.0, "X": 3.4, "2": 3.6}, "1")
+    inv = 1 / 2.0 + 1 / 3.4 + 1 / 3.6
+    assert r["book_p"] == pytest.approx((1 / 2.0) / inv)
+    assert r["flag"] == (0.55 - r["book_p"] >= 0.05)
