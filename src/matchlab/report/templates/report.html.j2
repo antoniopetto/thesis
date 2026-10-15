@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report {{ league }} {{ season }}</title>
+<style>
+:root {
+  --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e3e2dd;
+  --accent: #2f5d8a; --good: #2e7d4f; --good-bg: #e8f3ec; --bad: #b3412e; --bad-bg: #f8e9e6;
+  --neutral: #7a5a12; --neutral-bg: #f6efdc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --surface: #20201e; --text: #ecebe6; --muted: #a3a29b; --border: #34332f;
+    --accent: #8ab4dd; --good: #7fcf9e; --good-bg: #1d2f24; --bad: #ee9a8a; --bad-bg: #3a2420;
+    --neutral: #e2c47a; --neutral-bg: #352d19;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header.top { padding: 24px 16px 8px; max-width: 1200px; margin: 0 auto; }
+h1 { margin: 0 0 4px; font-size: 26px; }
+.muted { color: var(--muted); }
+main { max-width: 1200px; margin: 0 auto; padding: 0 16px 48px; }
+nav.teams { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 10px 0; border-bottom: 1px solid var(--border);
+  display: flex; flex-wrap: wrap; gap: 6px; }
+nav.teams a, .chip { font-size: 13px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text); text-decoration: none; background: var(--surface); }
+nav.teams a:hover { border-color: var(--accent); color: var(--accent); }
+section { margin-top: 28px; scroll-margin-top: 64px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-top: 14px; }
+h2 { font-size: 20px; margin: 0 0 6px; }
+h3 { font-size: 15px; margin: 18px 0 6px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+@media (max-width: 820px) { .grid3 { grid-template-columns: 1fr; } }
+.box { border-radius: 8px; padding: 10px 12px; }
+.box h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+.box ul { margin: 0; padding-left: 18px; }
+.box li { margin: 4px 0; font-size: 14px; }
+.good { background: var(--good-bg); } .good h4 { color: var(--good); }
+.bad { background: var(--bad-bg); } .bad h4 { color: var(--bad); }
+.neutral { background: var(--neutral-bg); } .neutral h4 { color: var(--neutral); }
+.form { font-family: ui-monospace, monospace; letter-spacing: 2px; font-weight: 600; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; }
+.tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--neutral-bg); color: var(--neutral); }
+.scroll { overflow-x: auto; }
+table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.tbl th, table.tbl td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+table.tbl th:first-child, table.tbl td:first-child { text-align: left; }
+table.tbl th { color: var(--muted); font-weight: 600; }
+details summary { cursor: pointer; color: var(--accent); margin-top: 10px; }
+.warn { border-left: 3px solid var(--neutral); padding: 6px 10px; background: var(--neutral-bg); margin: 6px 0; font-size: 14px; }
+.small { font-size: 13px; }
+a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>{{ league }} {{ season }} — punti di forza, debolezze e tendenze</h1>
+  <div class="muted small">{{ n_matches }} partite analizzate (fino al {{ last_date }}) · fonti: {{ sources | join(", ") }} · generato il {{ generated }}</div>
+</header>
+<main>
+  <nav class="teams">
+    <a href="#campionato">Campionato</a>
+    {% if previews %}<a href="#anteprime">Prossime partite</a>{% endif %}
+    {% for t in teams %}<a href="#{{ t.slug }}">{{ t.name }}</a>{% endfor %}
+  </nav>
+
+  {% for w in warnings %}<div class="warn">{{ w }}</div>{% endfor %}
+
+  <section id="campionato">
+    <div class="card">
+      <h2>Classifica</h2>
+      <div class="scroll">{{ standings | safe }}</div>
+    </div>
+    {% if referees %}
+    <div class="card">
+      <h2>Arbitri</h2>
+      {% if league_insights %}<ul>{% for i in league_insights %}<li>{{ i.text }}</li>{% endfor %}</ul>{% endif %}
+      <div class="scroll">{{ referees | safe }}</div>
+    </div>
+    {% endif %}
+    <div class="card small">
+      <h2>Agenti</h2>
+      <ul>{% for name, role, n in agents %}<li><strong>{{ name }}</strong> — {{ role }} <span class="muted">({{ n }} segnalazioni)</span></li>{% endfor %}</ul>
+      <p class="muted">Una metrica è "forza" o "debolezza" quando la squadra si discosta di almeno 1 deviazione standard dalle altre,
+      usando medie con <em>shrinkage</em> (con poche partite il valore viene avvicinato alla media del campionato). Tra parentesi: media lega, posizione nel campionato, valore nelle ultime partite.</p>
+    </div>
+  </section>
+
+  {% if previews %}
+  <section id="anteprime">
+    <div class="card">
+      <h2>Prossime partite <span class="tag">fase 2 · sperimentale</span></h2>
+      <p class="muted small">Stime di base dal modello attacco × difesa (Poisson per i gol, binomiale negativa per corner e cartellini).
+      "Quota equa" = 1 / probabilità, senza margine del bookmaker. Usale come riferimento, non come consiglio di gioco.</p>
+      {% for p in previews %}
+      <h3><a href="#{{ p.home_slug }}">{{ p.home }}</a> – <a href="#{{ p.away_slug }}">{{ p.away }}</a> <span class="muted">· {{ p.date }}</span></h3>
+      <div class="meta small">
+        {% if p.xg %}<span>Gol attesi: <strong>{{ p.xg }}</strong></span>{% endif %}
+        {% if p.corners %}<span>Corner attesi: <strong>{{ p.corners }}</strong></span>{% endif %}
+        {% if p.cards %}<span>Cartellini attesi: <strong>{{ p.cards }}</strong></span>{% endif %}
+        {% if p.referee %}<span>Arbitro: {{ p.referee }}</span>{% endif %}
+        {% if p.scores %}<span>Risultati più probabili: {{ p.scores }}</span>{% endif %}
+      </div>
+      <div class="scroll"><table class="tbl">
+        <tr><th>Esito</th><th>Probabilità</th><th>Quota equa</th><th>Quota media mercato</th></tr>
+        {% for label, pr, fair, mkt in p.rows %}
+        <tr><td>{{ label }}</td><td>{{ pr | pct }}</td><td>{{ fair or "–" }}</td><td>{{ "%.2f" % mkt if mkt else "–" }}</td></tr>
+        {% endfor %}
+      </table></div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% for t in teams %}
+  <section id="{{ t.slug }}">
+    <div class="card">
+      <h2>{{ t.name }}</h2>
+      <div class="meta">
+        {% if t.standing %}<span>{{ t.standing.Pos }}° · {{ t.standing.Pt }} punti in {{ t.standing.G }} partite · GF {{ t.standing.GF }} GS {{ t.standing.GS }}</span>{% endif %}
+        {% if t.form.forma %}<span>Forma: <span class="form">{{ t.form.forma }}</span></span>{% endif %}
+        {% if t.form.Casa %}<span>Casa: {{ t.form.Casa }}</span><span>Trasferta: {{ t.form.Trasferta }}</span>{% endif %}
+      </div>
+      {% if t.style %}
+      <div class="meta" style="margin-top:8px">
+        {% if t.style.allenatore %}<span>Allenatore: <strong>{{ t.style.allenatore }}</strong></span>{% endif %}
+        {% for tag in t.style.profilo %}<span class="tag">{{ tag }}</span>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="grid3">
+        <div class="box good"><h4>Punti di forza</h4>
+          {% if t.strengths %}<ul>{% for i in t.strengths %}<li>{{ i.text }}</li>{% endfor %}</ul>{% else %}<span class="muted small">Nessun dato fuori norma.</span>{% endif %}
+        </div>
+        <div class="box bad"><h4>Punti deboli</h4>
+          {% if t.weaknesses %}<ul>{% for i in t.weaknesses %}<li>{{ i.text }}</li>{% endfor %}</ul>{% else %}<span class="muted small">Nessun dato fuori norma.</span>{% endif %}
+        </div>
+        <div class="box neutral"><h4>Tendenze utili</h4>
+          {% if t.tendencies %}<ul>{% for i in t.tendencies %}<li>{{ i.text }}</li>{% endfor %}</ul>{% else %}<span class="muted small">Nessuna tendenza marcata.</span>{% endif %}
+        </div>
+      </div>
+      {% for title, html in t.tables if html %}
+      <details{% if loop.first %} open{% endif %}><summary>{{ title }}</summary><div class="scroll">{{ html | safe }}</div></details>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</main>
+</body>
+</html>

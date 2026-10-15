@@ -1,0 +1,3 @@
+# Designazioni arbitrali: partite giocate E prossima giornata (date gg/mm/aaaa).
+# Per la Serie A football-data.co.uk non fornisce l'arbitro: senza questo file l'agente Arbitri resta spento.
+date,home,away,referee

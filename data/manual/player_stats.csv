@@ -1,0 +1,5 @@
+# Statistiche giocatori extra (es. esportate da SofaScore/FBref/Opta). Valori TOTALI di stagione:
+# l'agente Scout li converte in "per 90'" usando la colonna minutes.
+# Colonne riconosciute: dribbles_completed, tackles, interceptions, fouls_committed, fouls_won,
+# shots_on_target, crosses, saves (qualsiasi altra colonna numerica viene comunque inclusa).
+player,team,minutes,dribbles_completed,fouls_committed,fouls_won
