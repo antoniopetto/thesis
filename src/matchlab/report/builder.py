@@ -149,10 +149,11 @@ def build_context(result: AnalysisResult) -> dict:
     }
 
 
-def render_html(result: AnalysisResult) -> str:
+def render_html(result: AnalysisResult, standalone: bool = True) -> str:
+    """standalone=False: senza <html>/<head>/<body>, per la pubblicazione come pagina claude.ai."""
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html", "j2"]))
     env.filters["pct"] = lambda v: "–" if v is None else f"{v * 100:.0f}%"
-    return env.get_template("report.html.j2").render(**build_context(result))
+    return env.get_template("report.html.j2").render(standalone=standalone, **build_context(result))
 
 
 def render_markdown(result: AnalysisResult) -> str:
@@ -190,6 +191,8 @@ def write_reports(result: AnalysisResult, out_dir: Path) -> dict[str, Path]:
         "profiles_csv": out_dir / f"profiles_{stem}.csv",
     }
     paths["html"].write_text(render_html(result), encoding="utf-8")
+    paths["pagina"] = out_dir / f"pagina_{stem}.html"
+    paths["pagina"].write_text(render_html(result, standalone=False), encoding="utf-8")
     paths["markdown"].write_text(render_markdown(result), encoding="utf-8")
     paths["insights_json"].write_text(
         json.dumps([i.to_dict() for i in result.insights], ensure_ascii=False, indent=1, default=str), encoding="utf-8"

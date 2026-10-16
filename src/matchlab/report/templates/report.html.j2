@@ -1,9 +1,10 @@
-<!doctype html>
+{% if standalone %}<!doctype html>
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Report {{ league }} {{ season }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+{% endif %}<title>Report {{ league }} {{ season }}</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <style>
 :root {
   --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e3e2dd;
@@ -14,16 +15,24 @@
   :root:not([data-theme="light"]) {
     --bg: #161615; --surface: #20201e; --text: #ecebe6; --muted: #a3a29b; --border: #34332f;
     --accent: #8ab4dd; --good: #7fcf9e; --good-bg: #1d2f24; --bad: #ee9a8a; --bad-bg: #3a2420;
-    --neutral: #e2c47a; --neutral-bg: #352d19;
+    --neutral: #e2c47a; --neutral-bg: #352d19; color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #161615; --surface: #20201e; --text: #ecebe6; --muted: #a3a29b; --border: #34332f;
+  --accent: #8ab4dd; --good: #7fcf9e; --good-bg: #1d2f24; --bad: #ee9a8a; --bad-bg: #3a2420;
+  --neutral: #e2c47a; --neutral-bg: #352d19; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-header.top { padding: 24px 16px 8px; max-width: 1200px; margin: 0 auto; }
+header.top, main { max-width: 1232px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { padding-block: 24px 8px; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
 h1 { margin: 0 0 4px; font-size: 26px; }
 .muted { color: var(--muted); }
-main { max-width: 1200px; margin: 0 auto; padding: 0 16px 48px; }
-nav.teams { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 10px 0; border-bottom: 1px solid var(--border);
+main { padding-block: 0 48px; }
+nav.teams { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg); padding: 10px 0; border-bottom: 1px solid var(--border);
   display: flex; flex-wrap: wrap; gap: 6px; }
 nav.teams a, .chip { font-size: 13px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px;
   color: var(--text); text-decoration: none; background: var(--surface); }
@@ -58,8 +67,8 @@ details summary { cursor: pointer; color: var(--accent); margin-top: 10px; }
 .small { font-size: 13px; }
 a { color: var(--accent); }
 </style>
-</head>
-<body>
+{% if standalone %}</head>
+<body>{% endif %}
 <header class="top">
   <h1>{{ league }} {{ season }} — punti di forza, debolezze e tendenze</h1>
   <div class="muted small">{{ n_matches }} partite analizzate (fino al {{ last_date }}) · fonti: {{ sources | join(", ") }} · generato il {{ generated }}</div>
@@ -175,5 +184,5 @@ a { color: var(--accent); }
   </section>
   {% endfor %}
 </main>
-</body>
-</html>
+{% if standalone %}</body>
+</html>{% endif %}
