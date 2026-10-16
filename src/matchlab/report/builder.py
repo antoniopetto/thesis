@@ -68,7 +68,7 @@ def _coach_view(st: dict) -> dict:
     if st.get("precedente"):
         lines.append(f"Prima di lui: {st['precedente']}")
     if st.get("altrove"):
-        lines.append(st.get("altrove_stile") or f"L'anno scorso allenava il {st['altrove']}")
+        lines.append(st.get("altrove_stile") or f"L'anno scorso allenava {st['altrove']}")
     if st.get("moduli"):
         lines.append(f"Moduli usati: {st['moduli']}")
     if st.get("modulo_preferito"):

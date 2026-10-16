@@ -124,10 +124,10 @@ class OpponentAgent(Agent):
                     big_enough = abs(x.mean() - expected) >= 0.15 if m.rate else abs(rel) >= 0.2
                     if abs(t) < self.T_THRESHOLD or not big_enough:
                         continue
-                    more = "più" if x.mean() > expected else "meno"
-                    text = (f"{cat.label}: {m.label.lower()} {_fmt(m, x.mean())} contro {_fmt(m, y.mean())} nelle altre "
-                            f"partite ({len(x)} gare). Ci si aspetterebbe {_fmt(m, expected)} visto come cambiano "
-                            f"le altre squadre: qui ne fa {more} del previsto.")
+                    direction = "molto sopra" if x.mean() > expected else "molto sotto"
+                    text = (f"{cat.label}: {m.label.lower()} {_fmt(m, x.mean())} in {len(x)} gare "
+                            f"(nelle altre partite {_fmt(m, y.mean())}; {direction} l'atteso di {_fmt(m, expected)}, "
+                            f"calcolato su come cambiano le altre squadre).")
                     out.insights.append(Insight(
                         self.name, "contesto", "tendenza", text, team=team, metric=f"{cat.key}:{m.key}",
                         value=float(x.mean()), league=float(expected), n=len(x), score=min(abs(t), 5) * 0.8,

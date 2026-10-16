@@ -197,7 +197,7 @@ class CoachAgent(Agent):
                 other = prev[(prev["coach"] == i["coach"]) & (prev["team"] == i["elsewhere"])]
                 o = summarize(style_rows(other))
                 styles[team]["altrove_stile"] = (
-                    f"L'anno scorso al {i['elsewhere']} ({len(other)} partite): possesso {o['possession']:.0f}%, "
+                    f"L'anno scorso allenava {i['elsewhere']} ({len(other)} partite): possesso {o['possession']:.0f}%, "
                     f"PPDA {o['ppda']:.1f}, xG {o['xg_for']:.2f} fatti / {o['xg_against']:.2f} concessi a partita."
                     if not pd.isna(o.get("possession")) else None
                 )
