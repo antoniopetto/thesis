@@ -43,7 +43,8 @@ class LeagueData:
     coaches: dict[str, str] = field(default_factory=dict)
     sources: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    referee_career: pd.DataFrame = field(default_factory=pd.DataFrame)  # statistiche carriera (SofaScore)
+    referee_career: pd.DataFrame = field(default_factory=pd.DataFrame)
+    coach_info: dict = field(default_factory=dict)  # squadra -> scheda allenatore SofaScore  # statistiche carriera (SofaScore)
     previous: "LeagueData | None" = None  # stagione precedente (stesso campionato), se disponibile
 
     @property
@@ -74,6 +75,22 @@ def to_team_matches(matches: pd.DataFrame) -> pd.DataFrame:
             if mine in matches.columns:
                 d[f"{base}_for"] = matches[mine].values
                 d[f"{base}_against"] = matches[theirs].values
+        # Altre coppie home_X / away_X (statistiche di gioco SofaScore, allenatore, modulo).
+        done = {c for h, a, _ in PAIRED for c in (h, a)}
+        for col in matches.columns:
+            if not col.startswith("home_") or col in done:
+                continue
+            base = col[len("home_"):]
+            other = f"away_{base}"
+            if other not in matches.columns or other in done:
+                continue
+            mine, theirs = (col, other) if venue == "H" else (other, col)
+            if pd.api.types.is_numeric_dtype(matches[col]):
+                d[f"{base}_for"] = matches[mine].values
+                d[f"{base}_against"] = matches[theirs].values
+            else:
+                d[base] = matches[mine].values
+                d[f"opp_{base}"] = matches[theirs].values
         if "referee" in matches.columns:
             d["referee"] = matches["referee"].values
         # Probabilità implicita di vittoria dalle quote (senza margine), se presenti.
@@ -167,6 +184,25 @@ def merge_sofascore_players(players: pd.DataFrame, sofa: pd.DataFrame, known_tea
     return out
 
 
+def merge_event_columns(matches: pd.DataFrame, ev: pd.DataFrame) -> pd.DataFrame:
+    """Aggiunge alle partite le colonne home_*/away_* degli eventi SofaScore (abbinando casa/ospite)."""
+    cols = [c for c in ev.columns if (c.startswith("home_") or c.startswith("away_")) and c not in matches.columns]
+    if ev.empty or not cols:
+        return matches
+    known = sorted(set(matches["home"]) | set(matches["away"]))
+    ev = ev.assign(
+        home=ev["home"].map(lambda n: canonical(n, known)), away=ev["away"].map(lambda n: canonical(n, known)),
+    )
+    ev = ev[ev["status"] == "finished"].drop_duplicates(["home", "away"], keep="last")[["home", "away"] + cols]
+    out = matches.merge(ev, on=["home", "away"], how="left")
+    for c in cols:
+        if c.split("_", 1)[1].startswith(("coach", "formation")):
+            out[c] = out[c].astype("object").where(out[c].notna(), None).map(lambda v: v if v is None else str(v))
+        else:
+            out[c] = pd.to_numeric(out[c], errors="coerce")
+    return out
+
+
 def merge_player_extras(players: pd.DataFrame, extras: pd.DataFrame | None, known_teams: list[str]) -> pd.DataFrame:
     if extras is None:
         return players
@@ -204,8 +240,9 @@ def build(
     sofa_refs = pd.DataFrame()
     if use_sofascore:
         try:
-            sofa_refs = sofascore.referees(league, season, cache, upcoming=not _is_previous)
+            sofa_refs = sofascore.events(league, season, cache, upcoming=not _is_previous)
             matches = merge_referees(matches, sofa_refs, by_date=False)
+            matches = merge_event_columns(matches, sofa_refs)
             sources.append("sofascore.com (arbitri)")
         except (FetchError, ValueError, KeyError) as exc:
             warnings.append(f"SofaScore non disponibile ({exc}): arbitri solo da data/manual/referees.csv.")
@@ -296,7 +333,17 @@ def build(
             .set_index("referee")[["ref_career_games", "ref_career_yellows", "ref_career_reds"]]
         )
 
+    coach_info = {}
+    if use_sofascore and "home_coach_id" in matches.columns:
+        last = tm.sort_values("date").dropna(subset=["coach_id"]).groupby("team").tail(1)
+        for r in last.itertuples():
+            try:
+                coach_info[r.team] = sofascore.coach_profile(cache, int(float(r.coach_id)))
+            except (ValueError, TypeError):
+                pass
+
     return LeagueData(
+        coach_info=coach_info,
         referee_career=career,
         previous=previous,
         league=league,

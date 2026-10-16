@@ -11,7 +11,9 @@ import numpy as np
 
 from ..stats import distributions as dist
 from ..stats.model import MatchModel, ModelParams
+from ..stats.context import team_tags
 from .absences import team_absences
+from .opponents import matchup_lines
 from .base import Agent, AgentOutput, Context
 from .referee import referee_matches
 
@@ -73,6 +75,12 @@ class PreviewAgent(Agent):
                     p["rows"].append(_row(f"Over {line} cartellini", dist.over_prob(total, line),
                                           (book.get("cards") or {}).get(line), "Over"))
             p["has_book"] = bool(book)
+            p["matchup"] = {
+                "home": {"tags": team_tags(ctx.opponents.classes, f.away) if ctx.opponents else [],
+                         "lines": matchup_lines(ctx.opponents, f.home, f.away)},
+                "away": {"tags": team_tags(ctx.opponents.classes, f.home) if ctx.opponents else [],
+                         "lines": matchup_lines(ctx.opponents, f.away, f.home)},
+            }
             previews.append(p)
         out.tables["previews"] = previews
         if previews and not any(p["has_book"] for p in previews):

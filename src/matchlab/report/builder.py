@@ -43,7 +43,12 @@ def _team_view(result: AnalysisResult, team: str) -> dict:
         "strengths": s.strengths,
         "weaknesses": s.weaknesses,
         "tendencies": s.tendencies,
+        "context": s.context,
+        "coach": _coach_view(get("Allenatore & stile", "styles").get(team, {})),
         "tables": [
+            ("Rendimento in base all'avversario (stagione in corso + precedente)",
+             _html_table(get("Contesto avversario").get(team), "tbl lead1")),
+            ("Allenatore: identikit di gioco rispetto al campionato", _html_table(get("Allenatore & stile").get(team), "tbl lead1")),
             ("Attacco e difesa", _html_table(get("Attacco & difesa").get(team))),
             ("Calci d'angolo", _html_table(get("Calci d'angolo").get(team))),
             ("Disciplina", _html_table(get("Disciplina").get(team))),
@@ -51,6 +56,30 @@ def _team_view(result: AnalysisResult, team: str) -> dict:
             ("Giocatori chiave (per 90')", _html_table(get("Scout giocatori").get(team))),
         ],
     }
+
+
+def _coach_view(st: dict) -> dict:
+    if not st or not st.get("allenatore"):
+        return {}
+    since = st.get("dal")
+    lines = []
+    if since is not None and not pd.isna(since):
+        lines.append(f"In panchina dal {pd.Timestamp(since).strftime('%d/%m/%Y')} ({st.get('partite', 0)} partite di campionato nei dati)")
+    if st.get("precedente"):
+        lines.append(f"Prima di lui: {st['precedente']}")
+    if st.get("altrove"):
+        lines.append(st.get("altrove_stile") or f"L'anno scorso allenava il {st['altrove']}")
+    if st.get("moduli"):
+        lines.append(f"Moduli usati: {st['moduli']}")
+    if st.get("modulo_preferito"):
+        lines.append(f"Modulo preferito in carriera: {st['modulo_preferito']}")
+    car = st.get("carriera") or {}
+    if car.get("career_matches"):
+        w, d, l = car.get("career_wins") or 0, car.get("career_draws") or 0, car.get("career_losses") or 0
+        lines.append(f"Carriera: {car['career_matches']} partite, {w}V {d}N {l}P")
+    cambio = st.get("cambio")
+    return {"name": st["allenatore"], "lines": lines,
+            "change": _html_table(cambio, "tbl lead1") if isinstance(cambio, pd.DataFrame) else ""}
 
 
 def _previews(result: AnalysisResult) -> list[dict]:
@@ -73,6 +102,13 @@ def _previews(result: AnalysisResult) -> list[dict]:
             item["referee"] = c.get("referee")
             item["ref_factor"] = c.get("ref_factor")
         item["flags"] = [r for r in p["rows"] if r["flag"]]
+        mu = p.get("matchup") or {}
+        item["matchup"] = []
+        for side, team, opp in (("home", p["home"], p["away"]), ("away", p["away"], p["home"])):
+            x = mu.get(side) or {}
+            if x.get("lines"):
+                item["matchup"].append({"team": team, "opp": opp, "tags": ", ".join(x.get("tags", [])),
+                                        "lines": x["lines"]})
         ab = p.get("absences") or {}
         item["absences"] = []
         for side, team in (("home", p["home"]), ("away", p["away"])):

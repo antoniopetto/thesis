@@ -66,6 +66,81 @@ def _row(e: dict, detail: dict) -> dict:
     }
 
 
+# Statistiche di gioco per partita: chiave SofaScore -> nome interno (diventa home_<nome> / away_<nome>).
+MATCH_STATS = {
+    "ballPossession": "possession",
+    "passes": "passes",
+    "accuratePasses": "acc_passes",
+    "accurateLongBalls": "long_balls",
+    "accurateCross": "crosses",
+    "finalThirdEntries": "final_third",
+    "touchesInOppBox": "box_touches",
+    "bigChanceCreated": "big_chances",
+    "totalShotsInsideBox": "shots_in_box",
+    "totalShotsOutsideBox": "shots_out_box",
+    "ballRecovery": "recoveries",
+    "interceptionWon": "interceptions",
+    "totalTackle": "tackles",
+    "totalClearance": "clearances",
+    "offsides": "offsides",
+    "duelWonPercent": "duels_won_pct",
+}
+
+
+def match_details(cache: HttpCache, event_id: int) -> dict:
+    """Statistiche di gioco, allenatori e moduli di una partita conclusa."""
+    out: dict = {}
+    try:
+        st = _get(cache, f"event/{event_id}/statistics", max_age_hours=LONG_CACHE_H)
+        period = next((p for p in st.get("statistics", []) if p.get("period") == "ALL"), None)
+        for g in (period or {}).get("groups", []):
+            for item in g.get("statisticsItems", []):
+                name = MATCH_STATS.get(item.get("key"))
+                if name and f"home_{name}" not in out:
+                    out[f"home_{name}"] = item.get("homeValue")
+                    out[f"away_{name}"] = item.get("awayValue")
+    except FetchError:
+        pass
+    try:
+        mg = _get(cache, f"event/{event_id}/managers", max_age_hours=LONG_CACHE_H)
+        out["home_coach"] = (mg.get("homeManager") or {}).get("name")
+        out["away_coach"] = (mg.get("awayManager") or {}).get("name")
+        out["home_coach_id"] = (mg.get("homeManager") or {}).get("id")
+        out["away_coach_id"] = (mg.get("awayManager") or {}).get("id")
+    except FetchError:
+        pass
+    try:
+        lu = _get(cache, f"event/{event_id}/lineups", max_age_hours=LONG_CACHE_H)
+        out["home_formation"] = (lu.get("home") or {}).get("formation")
+        out["away_formation"] = (lu.get("away") or {}).get("formation")
+    except FetchError:
+        pass
+    return out
+
+
+def coach_profile(cache: HttpCache, coach_id: int) -> dict:
+    """Scheda allenatore: modulo preferito e rendimento in carriera (se disponibili)."""
+    try:
+        m = _get(cache, f"manager/{coach_id}", max_age_hours=24 * 7).get("manager", {})
+    except FetchError:
+        return {}
+    perf = m.get("performance") or {}
+    return {"name": m.get("name"), "preferred_formation": m.get("preferredFormation"),
+            "career_matches": perf.get("total"), "career_wins": perf.get("wins"),
+            "career_draws": perf.get("draws"), "career_losses": perf.get("losses")}
+
+
+def events(league: League, season: int, cache: HttpCache, upcoming: bool = True, details: bool = True) -> pd.DataFrame:
+    """Una riga per partita (giocate + prossime): arbitro e, per le giocate, statistiche di gioco,
+    allenatori e moduli (con details=True)."""
+    df = referees(league, season, cache, upcoming=upcoming)
+    if not details or df.empty:
+        return df
+    extra = [match_details(cache, int(e)) if st == "finished" else {}
+             for e, st in zip(df["event_id"], df["status"])]
+    return pd.concat([df.reset_index(drop=True), pd.DataFrame(extra)], axis=1)
+
+
 def referees(league: League, season: int, cache: HttpCache, upcoming: bool = True) -> pd.DataFrame:
     """Una riga per partita (giocate + prossime) con l'arbitro e le sue statistiche di carriera."""
     tournament = TOURNAMENT_IDS.get(league.key)

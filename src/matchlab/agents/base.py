@@ -55,6 +55,7 @@ class Context:
     settings: AnalysisSettings
     profiles: pd.DataFrame  # output di stats.metrics.profile_table
     prev_profiles: pd.DataFrame | None = None  # stessa tabella per la stagione precedente
+    opponents: object = None  # stats.context.OpponentContext (tipo di avversario per partita)
 
     @property
     def league_name(self) -> str:

@@ -142,3 +142,39 @@ def test_team_absences():
     assert rows[0]["share"] == pytest.approx(6 / 10)
     assert mult == pytest.approx(1 - 0.6 * 0.5) or mult == pytest.approx(1 - MAX_REDUCTION)
     assert team_absences(players, "Alfa", [])[1] == 1.0
+
+
+def test_opponent_context_and_agents(data):
+    import numpy as np
+
+    from matchlab.agents.base import Context
+    from matchlab.agents.coach import CoachAgent
+    from matchlab.agents.opponents import OpponentAgent, matchup_lines
+    from matchlab.config import AnalysisSettings
+    from matchlab.stats import context as oc_mod
+    from matchlab.stats.metrics import profile_table
+
+    tm = data.team_matches.copy()
+    rng = np.random.default_rng(1)
+    # Possesso sintetico: le prime squadre dell'elenco tengono di più la palla.
+    base = {t: 60 - 2 * i for i, t in enumerate(sorted(tm.team.unique()))}
+    tm["possession_for"] = tm["team"].map(base) + rng.normal(0, 3, len(tm))
+    tm["possession_against"] = 100 - tm["possession_for"]
+    tm["coach"] = tm["team"].map(lambda t: f"Mister {t}")
+    oc = oc_mod.build(tm, None)
+    assert set(oc.classes["tier"]) == {"big", "media", "piccola"}
+    assert oc.classes["chiusa"].sum() >= 1 and oc.classes["possesso"].sum() >= 1
+    assert {"opp_tier", "opp_chiusa"} <= set(oc.matches.columns)
+
+    data.team_matches = tm
+    ctx = Context(data=data, settings=AnalysisSettings(), profiles=profile_table(tm), opponents=oc)
+    out = OpponentAgent().run(ctx)
+    assert set(out.tables["per_team"]) == set(data.teams)
+    assert "Tutte le partite" in out.tables["per_team"]["Alfa"]["Avversario"].tolist()
+    lines = matchup_lines(oc, "Alfa", "Kappa")
+    assert lines and all("punti/partita" in l["text"] for l in lines)
+    coach = CoachAgent().run(ctx)
+    # Il dato per partita vince sul nome scritto a mano in coaches.csv ("Mister Uno").
+    assert coach.tables["styles"]["Alfa"]["allenatore"] == "Mister Alfa"
+    assert coach.tables["styles"]["Alfa"]["partite"] == len(tm[tm.team == "Alfa"])
+    assert not coach.notes

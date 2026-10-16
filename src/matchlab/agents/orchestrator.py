@@ -7,13 +7,16 @@ from dataclasses import dataclass, field
 
 from ..config import AnalysisSettings
 from ..data.dataset import LeagueData
+from ..stats import context as opponent_context
 from ..stats.metrics import profile_table
 from .base import Agent, AgentOutput, Context, Insight
 from .markets import MarketsAgent
 from .players import PlayersAgent
 from .preview import PreviewAgent
 from .referee import RefereeAgent
-from .team_agents import AttackDefenseAgent, CornersAgent, DisciplineAgent, ResultsAgent, StyleAgent
+from .coach import CoachAgent
+from .opponents import OpponentAgent
+from .team_agents import AttackDefenseAgent, CornersAgent, DisciplineAgent, ResultsAgent
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +27,8 @@ def default_agents() -> list[Agent]:
         AttackDefenseAgent(),
         CornersAgent(),
         DisciplineAgent(),
-        StyleAgent(),
+        CoachAgent(),
+        OpponentAgent(),
         PlayersAgent(),
         RefereeAgent(),
         MarketsAgent(),
@@ -38,6 +42,7 @@ class TeamSummary:
     strengths: list[Insight] = field(default_factory=list)
     weaknesses: list[Insight] = field(default_factory=list)
     tendencies: list[Insight] = field(default_factory=list)
+    context: list[Insight] = field(default_factory=list)  # come cambia in base all'avversario
 
 
 @dataclass
@@ -67,7 +72,9 @@ class Orchestrator:
         profiles = profile_table(
             data.team_matches, st.shrinkage_matches, st.form_window, prior=prev_profiles, prior_weight=st.prior_weight
         )
-        ctx = Context(data=data, settings=st, profiles=profiles, prev_profiles=prev_profiles)
+        prev_tm = data.previous.team_matches if data.previous is not None else None
+        opponents = opponent_context.build(data.team_matches, prev_tm)
+        ctx = Context(data=data, settings=st, profiles=profiles, prev_profiles=prev_profiles, opponents=opponents)
         # Gli agenti leggono solo il contesto condiviso: possono girare in parallelo.
         with ThreadPoolExecutor(max_workers=len(self.agents)) as pool:
             results = list(pool.map(lambda a: self._safe_run(a, ctx), self.agents))
@@ -91,10 +98,16 @@ class Orchestrator:
                 if i.team not in summaries:
                     continue
                 s = summaries[i.team]
+                if i.kind == "info":
+                    continue
+                if i.category == "contesto":
+                    s.context.append(i)
+                    continue
                 {"forza": s.strengths, "debolezza": s.weaknesses}.get(i.kind, s.tendencies).append(i)
         for s in summaries.values():
-            for lst in (s.strengths, s.weaknesses, s.tendencies):
+            for lst in (s.strengths, s.weaknesses, s.tendencies, s.context):
                 lst.sort(key=lambda i: -i.score)
+            s.context = s.context[: top + 2]
             s.strengths, s.weaknesses = s.strengths[:top], s.weaknesses[:top]
             s.tendencies = s.tendencies[: top * 2]
         return summaries

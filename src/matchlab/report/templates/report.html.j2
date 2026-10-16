@@ -9,19 +9,19 @@
 :root {
   --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e3e2dd;
   --accent: #2f5d8a; --good: #2e7d4f; --good-bg: #e8f3ec; --bad: #b3412e; --bad-bg: #f8e9e6;
-  --neutral: #7a5a12; --neutral-bg: #f6efdc;
+  --neutral: #7a5a12; --neutral-bg: #f6efdc; --ctx-bg: #eaf0f6;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #161615; --surface: #20201e; --text: #ecebe6; --muted: #a3a29b; --border: #34332f;
     --accent: #8ab4dd; --good: #7fcf9e; --good-bg: #1d2f24; --bad: #ee9a8a; --bad-bg: #3a2420;
-    --neutral: #e2c47a; --neutral-bg: #352d19; color-scheme: dark;
+    --neutral: #e2c47a; --neutral-bg: #352d19; --ctx-bg: #1c2733; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #161615; --surface: #20201e; --text: #ecebe6; --muted: #a3a29b; --border: #34332f;
   --accent: #8ab4dd; --good: #7fcf9e; --good-bg: #1d2f24; --bad: #ee9a8a; --bad-bg: #3a2420;
-  --neutral: #e2c47a; --neutral-bg: #352d19; color-scheme: dark;
+  --neutral: #e2c47a; --neutral-bg: #352d19; --ctx-bg: #1c2733; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -54,11 +54,16 @@ h3 { font-size: 15px; margin: 18px 0 6px; }
 .meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; }
 .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--neutral-bg); color: var(--neutral); }
 .scroll { overflow-x: auto; }
+.coach { margin-top: 10px; }
+.coach-lines { margin: 6px 0 0; padding-left: 18px; }
+.ctx { margin-top: 12px; background: var(--ctx-bg); } .ctx h4 { color: var(--accent); }
+.matchup { margin-top: 6px; } .matchup ul { margin: 2px 0 0; padding-left: 18px; }
 .tag.flag { background: var(--good-bg); color: var(--good); }
 table.tbl tr.hl td { background: var(--good-bg); }
 table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
 table.tbl th, table.tbl td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
 table.tbl th:first-child, table.tbl td:first-child { text-align: left; }
+table.tbl.lead1 td:first-child { white-space: normal; min-width: 180px; }
 table.tbl.lead2 th:nth-child(2), table.tbl.lead2 td:nth-child(2),
 table.tbl.lead3 th:nth-child(-n+3), table.tbl.lead3 td:nth-child(-n+3) { text-align: left; }
 table.tbl th { color: var(--muted); font-weight: 600; }
@@ -136,6 +141,11 @@ a { color: var(--accent); }
         {% if p.scores %}<span>Risultati più probabili: {{ p.scores }}</span>{% endif %}
       </div>
       {% for a in p.absences %}<div class="small" style="margin-top:4px"><strong>Assenti {{ a.team }}:</strong> {{ a.text }}{% if a.adj %} → <em>{{ a.adj }}</em>{% endif %}</div>{% endfor %}
+      {% for mu in p.matchup %}
+      <div class="small matchup"><strong>{{ mu.team }} contro squadre come {{ mu.opp }}</strong>{% if mu.tags %} <span class="muted">({{ mu.tags }})</span>{% endif %}:
+        <ul>{% for l in mu.lines %}<li>{{ l.label }} ({{ l.n }} partite): {{ l.text }}</li>{% endfor %}</ul>
+      </div>
+      {% endfor %}
       {% if p.flags %}<div class="meta small" style="margin-top:6px">{% for r in p.flags %}<span class="tag flag">{{ r.label }}: modello {{ r.model_p | pct }} vs mercato {{ r.book_p | pct }}</span>{% endfor %}</div>{% endif %}
       <details><summary>Tutti gli esiti</summary><div class="scroll"><table class="tbl">
         <tr><th>Esito</th><th>Modello</th><th>Quota equa</th><th>Quota bookmaker</th><th>Prob. bookmaker</th><th>Differenza</th></tr>
@@ -161,9 +171,13 @@ a { color: var(--accent); }
         {% if t.form.stagione_scorsa %}<span class="muted">Stagione scorsa: {{ t.form.stagione_scorsa }}</span>{% endif %}
       </div>
       {% if t.style %}
-      <div class="meta" style="margin-top:8px">
-        {% if t.style.allenatore %}<span>Allenatore: <strong>{{ t.style.allenatore }}</strong></span>{% endif %}
-        {% for tag in t.style.profilo %}<span class="tag">{{ tag }}</span>{% endfor %}
+      <div class="coach">
+        <div class="meta">
+          {% if t.style.allenatore %}<span>Allenatore: <strong>{{ t.style.allenatore }}</strong></span>{% endif %}
+          {% for tag in t.style.profilo %}<span class="tag">{{ tag }}</span>{% endfor %}
+        </div>
+        {% if t.coach.lines %}<ul class="small coach-lines">{% for l in t.coach.lines %}<li>{{ l }}</li>{% endfor %}</ul>{% endif %}
+        {% if t.coach.change %}<details><summary>Cambio di allenatore: prima e dopo</summary><div class="scroll">{{ t.coach.change | safe }}</div></details>{% endif %}
       </div>
       {% endif %}
       <div class="grid3">
@@ -177,6 +191,11 @@ a { color: var(--accent); }
           {% if t.tendencies %}<ul>{% for i in t.tendencies %}<li>{{ i.text }}</li>{% endfor %}</ul>{% else %}<span class="muted small">Nessuna tendenza marcata.</span>{% endif %}
         </div>
       </div>
+      {% if t.context %}
+      <div class="box ctx"><h4>In base all'avversario</h4>
+        <ul>{% for i in t.context %}<li>{{ i.text }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
       {% for title, html in t.tables if html %}
       <details{% if loop.first %} open{% endif %}><summary>{{ title }}</summary><div class="scroll">{{ html | safe }}</div></details>
       {% endfor %}
